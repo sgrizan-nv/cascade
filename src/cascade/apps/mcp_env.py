@@ -133,6 +133,9 @@ NOT_FORWARDED: dict[str, tuple[str, str]] = {
                                       "legacy Franka launcher (scripts/run_franka_http_mcp.sh sets local_cosmos "
                                       "on hardware); scripts/launch.sh identifies objects with the brain "
                                       "detector (CASCADE_PERCEPTION_*), and generic registrations stay offline"),
+    "CASCADE_SCENE_CONFIG": ("registration", "Cascade Lab only: deploy/runtime/runtime.py writes it from "
+                             "PAAI_LAB_SCENE_CONFIG so the placement verdict reads the lab cell's fixtures; "
+                             "a generic registration keeps the kitchen verdict"),
     "CASCADE_ARMS": ("selection", "the server prefers it over CASCADE_ARM, so an inherited list would silently "
                      "replace the arm the registration names; pass several arms with --arm a,b"),
     "CASCADE_CAMERA": ("selection", "legacy single-camera selector, read only when CASCADE_CAMERAS is unset; "

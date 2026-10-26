@@ -200,6 +200,24 @@ def kitchen_problems(repo: Path, *, checksums: bool = True) -> list[str]:
     return problems or bundle_problems(repo, checksums=checksums)
 
 
+LAB_SOURCE_FILES = ("demo/lab_scenes.py", "demo/isaac_scene.py", "demo/own_kitchen.py",
+                    "demo/scene_identity.py", "scripts/isaac_bridge.py")
+
+
+def lab_scene_identity(repo: Path, config_path: Path, raw: bytes, config: dict) -> dict:
+    """Cascade Lab scenes are experimental: bind their bytes, not the kitchen audit."""
+    files = {name: file_receipt(local_file(repo, name)) for name in LAB_SOURCE_FILES}
+    inventory = json.dumps({"lab_sources": files}, sort_keys=True, separators=(",", ":")).encode()
+    return {
+        "scene_name": str(config.get("scene_name", "cascade-lab")),
+        "scene_config": str(config_path),
+        "scene_config_sha256": hashlib.sha256(raw).hexdigest(),
+        "scene_assets_sha256": hashlib.sha256(inventory).hexdigest(),
+        "scene_content_sha256": hashlib.sha256(raw + b"\0" + inventory).hexdigest(),
+        "experimental": True,
+    }
+
+
 def scene_identity(config_path: Path) -> dict:
     """Bind configuration AND verified generator/material bytes to a live scene."""
     config_path = Path(config_path).resolve()
@@ -208,6 +226,8 @@ def scene_identity(config_path: Path) -> dict:
         raise ValueError("Kitchen configuration must belong to this checkout")
     raw = config_path.read_bytes()
     config = json.loads(raw)
+    if config.get("lab_scene"):
+        return lab_scene_identity(repo, config_path, raw, config)
     validate_recipe(config)
     problems = kitchen_problems(repo)
     if problems:

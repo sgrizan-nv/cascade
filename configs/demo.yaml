@@ -94,7 +94,7 @@ grasp:
   # is probed at startup. Optional profiles report an analytic fallback and
   # retry after a short cooldown. The Spark profile requires the real model:
   # failed startup/inference is an error, with no analytic substitution.
-  backend: graspgenx
+  backend: obb
   graspgenx:
     host: 127.0.0.1         # CASCADE_GRASPGENX_HOST / _PORT override both, applied last by
     port: 5556              # load_demo_config to every arm's view (e.g. a server on a CUDA box)

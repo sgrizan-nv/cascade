@@ -11,6 +11,7 @@ import hashlib
 import importlib.util
 import json
 import math
+import os
 from pathlib import Path
 import time
 import uuid
@@ -33,6 +34,161 @@ def _auditor():
     return module
 
 
+def _lab_config():
+    name = os.environ.get("CASCADE_SCENE_CONFIG")
+    if not name:
+        return None
+    path = (ROOT / name).resolve()
+    if not path.is_relative_to(ROOT) or path.stat().st_size > 1024 * 1024:
+        raise ValueError("Scene configuration must be a bounded local checkout file")
+    config = json.loads(path.read_text())
+    return config if config.get("lab_scene") else None
+
+
+LAB_POSE_CODE = """
+import json as _lab_j
+from isaacsim.core.experimental.prims import RigidPrim as _lab_R
+_lab_rp = _lab_R('/World_Props/' + LAB_OBJECT)
+_lab_p, _ = _lab_rp.get_world_poses()
+_lab_v, _ = _lab_rp.get_velocities()
+_lab_p = (_lab_p.numpy() if hasattr(_lab_p, 'numpy') else _lab_p)[0]
+_lab_v = (_lab_v.numpy() if hasattr(_lab_v, 'numpy') else _lab_v)[0]
+print('LABPOSE ' + _lab_j.dumps({'sim_time': float(SimulationManager.get_simulation_time()),
+    'physics_step': int(SimulationManager.get_num_physics_steps()),
+    'position_m': [float(_lab_p[0]), float(_lab_p[1]), float(_lab_p[2]) - float(BASE_Z)],
+    'speed_m_s': float(sum(float(c) ** 2 for c in _lab_v[:3]) ** .5)}))
+"""
+
+
+def lab_bin_fixture(destination):
+    """Cascade Lab: name of the static sorting-bin fixture a destination names, else None.
+
+    Matches the fixture's configured aliases exactly, or any phrase holding its label and "bin"."""
+    try:
+        config = _lab_config()
+    except (OSError, ValueError, TypeError):
+        return None
+    words = str(destination or "").strip().lower().replace("_", " ").split()
+    words = [w for w in words if w != "the"]
+    for fixture in (config or {}).get("fixtures", []):
+        if fixture.get("kind") != "bin":
+            continue
+        aliases = {a.lower() for a in fixture.get("aliases", [])} | {fixture["name"].replace("_", " ")}
+        if " ".join(words) in aliases or (fixture.get("label") in words and "bin" in words):
+            return fixture["name"]
+    return None
+
+
+def lab_peg_fixture(destination):
+    """Cascade Lab: the calibrated peg fixture a destination names ("steel peg", "the peg"), else None.
+
+    A thin pin defeats the observed-top release height (depth misses its tip), so the peg is
+    released like the open box: from its configured position and height."""
+    try:
+        config = _lab_config()
+    except (OSError, ValueError, TypeError):
+        return None
+    words = [w for w in str(destination or "").strip().lower().replace("_", " ").split() if w != "the"]
+    for fixture in (config or {}).get("fixtures", []):
+        if fixture.get("kind") != "peg":
+            continue
+        tokens = set(fixture["name"].split("_"))
+        aliases = {a.lower() for a in fixture.get("aliases", [])} | {fixture["name"].replace("_", " ")}
+        if " ".join(words) in aliases or ("peg" in words and set(words) <= tokens):
+            return fixture
+    return None
+
+
+def _lab_region(config, destination):
+    for fixture in config.get("fixtures", []):
+        if fixture.get("kind") == "peg" and destination == fixture["name"]:
+            return {"center_xy_m": fixture["position"], "radius_m": fixture.get("seat_tolerance_m", 0.012),
+                    "support_top_z_m": 0.0, "footprint_inside": False}
+        if fixture.get("kind") == "bin" and destination == fixture["name"]:
+            wall = fixture["wall_thickness_m"]
+            return {"center_xy_m": fixture["position"],
+                    "half_m": [d / 2 - wall for d in fixture["outer_dimensions_m"][:2]],
+                    "support_top_z_m": fixture["base_thickness_m"], "footprint_inside": False}
+    if destination == "open box" and "open_box" in config:
+        box = config["open_box"]
+        return {"center_xy_m": box["center_xy_m"],
+                "half_m": [d / 2 for d in box["interior_dimensions_m"][:2]],
+                "support_top_z_m": box["support_top_z_m"], "footprint_inside": False}
+    if destination == "green square" and "target_pad" in config:
+        pad = config["target_pad"]
+        half = pad["outer_size_m"] / 2 - pad["border_width_m"]
+        return {"center_xy_m": pad["center_xy_m"], "half_m": [half, half],
+                "support_top_z_m": pad["support_top_z_m"], "footprint_inside": True}
+    return None
+
+
+def _read_lab_placement(endpoint, config, label, destination):
+    """Lab scenes: settle window from live PhysX rigid-body pose and speed only."""
+    measured = {"destination": destination, "scope": "postplacement only", "channel": "lab rigid-body readback"}
+    names = {p["name"]: p["name"] for p in config.get("props", [])}
+    names.update({n: n for n in config.get("cube_dimensions", {})})
+    object_name = _match_label(label, names)
+    if object_name is None:
+        # Visitors add materials the prop names omit ("steel hex nut" -> hex_nut).
+        known = {t for n in names for t in n.split("_")}
+        wanted = [t for t in str(label).lower().replace("-", " ").split() if t in known]
+        hits = [n for n in names if wanted and set(wanted) <= set(n.split("_"))]
+        object_name = hits[0] if len(hits) == 1 else None
+    region = _lab_region(config, destination)
+    if object_name is None or region is None:
+        return {"status": "unverified", "evidence": "requested object or destination has no lab scene identity",
+                "measured": measured}
+    dims = next((p["dimensions"] for p in config.get("props", []) if p["name"] == object_name),
+                config.get("cube_dimensions", {}).get(object_name))
+    records, client = [], BridgeClient(host=endpoint[0], port=endpoint[1], timeout_s=REQUEST_TIMEOUT_S)
+    deadline = time.monotonic() + WALL_BUDGET_S
+    code = "LAB_OBJECT = " + json.dumps(object_name) + "\n" + LAB_POSE_CODE
+    try:
+        client.connect()
+        while time.monotonic() < deadline:
+            reply = client.request({"op": "exec", "code": code}, timeout_s=REQUEST_TIMEOUT_S)
+            line = next((l for l in str(reply.get("stdout") or "").splitlines() if l.startswith("LABPOSE ")), None)
+            if line is None:
+                raise ValueError("lab pose readback returned no sample")
+            sample = json.loads(line[8:])
+            if records and (sample["sim_time"] < records[-1]["sim_time"]
+                            or sample["physics_step"] < records[-1]["physics_step"]):
+                raise ValueError("simulation restarted during placement observation")
+            records.append(sample)
+            if len(records) >= 6 and sample["sim_time"] - records[0]["sim_time"] >= .6:
+                break
+            time.sleep(INTERVAL_S)
+        else:
+            raise TimeoutError("placement observation exceeded its wall-time budget")
+    except Exception as exc:
+        return {"status": "unverified", "evidence": f"placement observation unavailable: {type(exc).__name__}: {exc}",
+                "measured": measured}
+    finally:
+        client.close()
+    first, last = records[0]["position_m"], records[-1]["position_m"]
+    drift = math.dist(first, last)
+    speed = max(r["speed_m_s"] for r in records[-3:])
+    cx, cy = region["center_xy_m"]
+    reach = max(dims[0], dims[1]) / 2 if region["footprint_inside"] else 0.0
+    if "radius_m" in region:
+        margin = region["radius_m"] - math.hypot(last[0] - cx, last[1] - cy)
+    else:
+        margin = min(region["half_m"][0] - abs(last[0] - cx) - reach,
+                     region["half_m"][1] - abs(last[1] - cy) - reach)
+    resting = last[2] <= region["support_top_z_m"] + max(dims) / 2 + 0.01
+    measured.update(object=object_name, position_m=[round(v, 4) for v in last], inside_margin_m=round(margin, 4),
+                    drift_m=round(drift, 4), max_speed_m_s=round(speed, 4), samples=len(records),
+                    window_s=round(records[-1]["sim_time"] - records[0]["sim_time"], 3))
+    if speed > 0.02 or drift > 0.003:
+        return {"status": "unverified", "evidence": "object still moving in the post-release window",
+                "measured": measured}
+    if margin < 0 or not resting:
+        why = "outside the destination region" if margin < 0 else "not resting on the destination support"
+        return {"status": "refuted", "evidence": f"settled {object_name} is {why}", "measured": measured}
+    return {"status": "confirmed", "evidence": f"settled {object_name} rests inside the {destination}",
+            "measured": measured}
+
+
 def read_placement(endpoint, robot_id, label, destination, *, evidence_dir=None):
     """Sample only after the caller's motion finishes, using a private socket.
 
@@ -40,6 +196,13 @@ def read_placement(endpoint, robot_id, label, destination, *, evidence_dir=None)
     Both wall time and sample count are bounded. Frozen or restarted simulation
     clocks never become a successful settling window.
     """
+    try:
+        lab = _lab_config()
+    except (OSError, ValueError, TypeError) as exc:
+        return {"status": "unverified", "evidence": f"lab scene configuration unavailable: {type(exc).__name__}",
+                "measured": {"destination": destination, "scope": "postplacement only"}}
+    if lab is not None:
+        return _read_lab_placement(endpoint, lab, label, destination)
     report = {"status": "unverified", "evidence": "placement physics unavailable",
               "measured": {"destination": destination, "scope": "postplacement only"}}
     records, client, expected, code = [], None, None, ""

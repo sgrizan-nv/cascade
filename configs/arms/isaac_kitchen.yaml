@@ -4,6 +4,10 @@ overrides:
     # Kitchen captures update about 3 Hz. Idle chat sessions must not each
     # transfer and decode the same three RGB-D captures 15 times per second.
     max_camera_poll_hz: 4.0
+    # Cascade Lab runs two cells (two brains, two Isaac) on one GPU: naming an object measured 21.2 s (6.1)
+    # and 54-61 s on 6.2 + Newton at 0.25x real time,
+    # past the 20 s default. The lab scenes hold still while the brain names the object.
+    semantic_max_age_s: 90.0
   detector:
     # Spark sim (Isaac + the brain on one GB10): an inventory measured 25.1 s
     # (1045 prompt / 365 completion tokens), past the default 20 s, so every

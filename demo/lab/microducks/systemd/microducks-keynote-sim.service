@@ -1,0 +1,15 @@
+[Unit]
+Description=Microducks keynote live: Isaac Sim 6.2 + Newton, perception from 4 RGB-D cameras, Nemotron agent, controls on 127.0.0.1:18211 (GPU 0)
+After=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/microducks-live/isaac_keynote_live
+Environment=CUDA_VISIBLE_DEVICES=0
+Environment=OMNI_KIT_ACCEPT_EULA=YES
+ExecStart=/home/ubuntu/Projects/microduck-curtain-call/.venvs/isaac/bin/python /home/ubuntu/microducks-live/isaac_keynote_live/keynote_live_sim.py --kit --servo pd --ctrl-port 18211 --shm /dev/shm/microducks_keynote_pose.bin
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

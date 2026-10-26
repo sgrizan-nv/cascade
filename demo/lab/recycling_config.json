@@ -1,0 +1,186 @@
+{
+ "version": 1,
+ "robot_prim": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+ "cube_positions": {
+  "green_cube": [
+   0.93,
+   -0.33,
+   0.03
+  ],
+  "pink_cube": [
+   0.93,
+   -0.25,
+   0.03
+  ]
+ },
+ "cube_dimensions": {
+  "pink_cube": [
+   0.0375,
+   0.0375,
+   0.06
+  ],
+  "green_cube": [
+   0.0375,
+   0.0375,
+   0.06
+  ]
+ },
+ "counter": {
+  "min": [
+   -0.15987323186177282,
+   -0.379085082641188,
+   -0.03
+  ],
+  "max": [
+   0.9867574274915567,
+   0.3795904990656434,
+   0.0
+  ]
+ },
+ "open_box": {
+  "name": "open box",
+  "center_xy_m": [
+   0.3,
+   -0.14
+  ],
+  "outer_dimensions_m": [
+   0.14,
+   0.14,
+   0.05
+  ],
+  "wall_thickness_m": 0.006,
+  "base_thickness_m": 0.004,
+  "interior_dimensions_m": [
+   0.128,
+   0.128,
+   0.046
+  ],
+  "color": [
+   0.08,
+   0.3,
+   0.72
+  ],
+  "support_top_z_m": 0.004,
+  "rim_top_z_m": 0.05,
+  "note": "Blue PLASTIC sorting bin; same calibrated 128 mm cavity and centre as the kitchen box, walls 5 cm.",
+  "style": "painted_steel",
+  "label": "plastic",
+  "description": "Blue sorting bin labelled PLASTIC: open top, four walls and a floor; cavity faces +Z"
+ },
+ "props": [
+  {
+   "name": "soda_can",
+   "visual": "lab:soda_can",
+   "position": [
+    0.19,
+    0.28,
+    0.05
+   ],
+   "dimensions": [
+    0.056,
+    0.056,
+    0.1
+   ],
+   "visual_dimensions": [
+    0.056,
+    0.056,
+    0.1
+   ],
+   "visual_offset": [
+    0,
+    0,
+    0
+   ],
+   "proxy": "cylinder",
+   "mass": 0.025,
+   "color": [
+    0.8,
+    0.05,
+    0.04
+   ]
+  },
+  {
+   "name": "yogurt_cup",
+   "visual": "lab:yogurt_cup",
+   "position": [
+    0.18,
+    0.14,
+    0.033
+   ],
+   "dimensions": [
+    0.056,
+    0.056,
+    0.066
+   ],
+   "visual_dimensions": [
+    0.056,
+    0.056,
+    0.066
+   ],
+   "visual_offset": [
+    0,
+    0,
+    0
+   ],
+   "proxy": "cylinder",
+   "mass": 0.015,
+   "color": [
+    0.85,
+    0.2,
+    0.42
+   ]
+  }
+ ],
+ "physics_material": {
+  "static_friction": 1.1,
+  "dynamic_friction": 1.0,
+  "restitution": 0.0
+ },
+ "cube_surfaces": {
+  "green_cube": "stone",
+  "pink_cube": "puzzle"
+ },
+ "scene_name": "cascade-lab-recycling-v3-conveyor",
+ "lab_scene": "recycling",
+ "fixtures": [
+  {
+   "name": "metal_bin",
+   "kind": "bin",
+   "position": [
+    0.13,
+    -0.25
+   ],
+   "outer_dimensions_m": [
+    0.16,
+    0.16,
+    0.05
+   ],
+   "wall_thickness_m": 0.006,
+   "base_thickness_m": 0.004,
+   "color": [
+    0.86,
+    0.6,
+    0.04
+   ],
+   "label": "metal",
+   "description": "Yellow sorting bin labelled METAL, fixed to the deck: open top, four walls and a floor",
+   "note": "Released above its observed rim (perception). Rim 5 cm and this XY keep the release and the post-place retreat inside the measured top-down IK envelope (retreat ~0.15 m).",
+   "aliases": [
+    "metal bin",
+    "yellow bin",
+    "yellow metal bin",
+    "metal sorting bin",
+    "yellow sorting bin",
+    "metal recycling bin",
+    "yellow metal sorting bin"
+   ]
+  }
+ ],
+ "conveyor": {
+  "belt_y_m": [
+   0.11,
+   0.3796
+  ],
+  "note": "Rubber belt skin over the calibrated collider (top z=0); phase 1 static. Tail end (x=-0.16) discharges into the drop hole; head end infeed at x~0.87."
+ }
+}

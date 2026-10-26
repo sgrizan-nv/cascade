@@ -1,0 +1,12 @@
+[Unit]
+Description=Microducks live cameras: Omniverse RTX (ovrtx) renderer + JPEG/MJPEG server on 127.0.0.1:18200 (GPU 1)
+After=microducks-isaac-sim.service
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/microducks-live/isaac
+Environment=CUDA_VISIBLE_DEVICES=1
+ExecStart=/home/ubuntu/Projects/microduck-curtain-call/.venvs/ovrtx/bin/python /home/ubuntu/microducks-live/isaac/ovrtx_live.py --source shm --shm /dev/shm/microducks_pose.bin --sim-url http://127.0.0.1:18201 --port 18200 --look v3 --width 960 --height 540 --fps 15 --updates 1
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

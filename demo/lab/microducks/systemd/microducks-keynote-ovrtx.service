@@ -1,0 +1,14 @@
+[Unit]
+Description=Microducks keynote live cameras: OVRTX Holodeck look + JPEG/MJPEG server on 127.0.0.1:18210 (GPU 1)
+After=microducks-keynote-sim.service
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/microducks-live/isaac_keynote_live
+Environment=CUDA_VISIBLE_DEVICES=1
+ExecStart=/home/ubuntu/Projects/microduck-curtain-call/.venvs/ovrtx/bin/python /home/ubuntu/microducks-live/isaac_keynote_live/keynote_live_ovrtx.py --source shm --shm /dev/shm/microducks_keynote_pose.bin --sim-url http://127.0.0.1:18211 --port 18210 --look holodeck --width 960 --height 540 --fps 15 --updates 1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

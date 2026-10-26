@@ -2109,8 +2109,15 @@ class SkillRuntime:
         elif str(destination).strip().lower() in _OPEN_BOX_WORDS:
             canonical = "open box"
         else:
-            return None
-        if not region_requested and canonical not in {"green square", "open box"}:
+            from ..sim.placement import lab_bin_fixture, lab_peg_fixture
+            canonical = lab_bin_fixture(destination)  # Cascade Lab static sorting bin, judged like the open box
+            if canonical is None:
+                peg = lab_peg_fixture(destination)
+                canonical = peg["name"] if peg is not None else None
+            if canonical is None:
+                return None
+        if (not region_requested and canonical not in {"green square", "open box"}
+                and not canonical.endswith(("_bin", "_peg"))):
             return None
         reader = getattr(self._object_pose, "placement", None)
         # A configured region cannot fall back to the weaker point channel.
@@ -7765,6 +7772,14 @@ class SkillRuntime:
             at = self._to_world(np.array([center[0], center[1], release], dtype=float))
             result = self.skill_place_at(float(at[0]), float(at[1]), float(at[2]))
             return {**result, "destination": "open box", "destination_kind": "configured_point"}
+        from ..sim.placement import lab_peg_fixture
+        peg = lab_peg_fixture(label)
+        if peg is not None:
+            top = float(peg["height"])
+            release = self._supported_release_height(
+                top, top + float(self.cfg.grasp.get("release_clearance_m", 0.06)))
+            result = self.skill_place_at(float(peg["position"][0]), float(peg["position"][1]), release)
+            return {**result, "destination": peg["name"], "destination_kind": "configured_fixture"}
         if self._native_wrist_camera():
             return self._place_at_destination(self._overview_destination(label))
         # Re-check the destination immediately before committing to a drop
@@ -11791,7 +11806,7 @@ def _is_human_curable(stop_reason: str | None) -> bool:
 #: spent four minutes inventing coordinates. The drop zone is a configured
 #: point, not a detected object -- these names mean "use it".
 _DROP_ZONE_WORDS = {"drop zone", "dropzone", "drop-zone", "drop_zone", "the drop zone",
-                    "bin", "the bin", "default", "zona de descarga",
+                    "default", "zona de descarga",
                     "green square", "the green square", "green target square",
                     "the green target square", "cuadrado verde", "el cuadrado verde",
                     "delivery area", "the delivery area", "delivery zone", "the delivery zone",
@@ -11800,6 +11815,14 @@ _DROP_ZONE_WORDS = {"drop zone", "dropzone", "drop-zone", "drop_zone", "the drop
                     "green zone", "the green zone", "delivery square", "the delivery square"}
 
 _OPEN_BOX_WORDS = {"open box", "the open box", "open_box", "beige box", "the beige box",
+                   # Cascade Lab: parts tray (workshop) and recycling bin (recycling).
+                   "bin", "the bin", "parts tray", "the parts tray", "tray", "the tray", "blue tray",
+                   "the blue tray", "recycling bin", "the recycling bin", "blue bin", "the blue bin",
+                   "blue recycling bin", "the blue recycling bin",
+                   # Cascade Lab recycling v3: the calibrated box is the blue PLASTIC sorting bin.
+                   "plastic bin", "the plastic bin", "blue plastic bin", "the blue plastic bin",
+                   "plastic sorting bin", "the plastic sorting bin", "plastic recycling bin",
+                   "the plastic recycling bin",
                    "box", "the box", "storage box", "the storage box", "wooden box", "the wooden box"}
 
 

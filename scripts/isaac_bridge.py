@@ -968,6 +968,16 @@ from isaacsim.core.experimental.prims import Articulation  # noqa: E402
 
 import faulthandler
 faulthandler.dump_traceback_later(120, repeat=False, exit=False)
+if args.engine == "newton" and os.environ.get("CASCADE_NEWTON_ONE_STEP_PER_UPDATE", "1") == "1":
+    # Cascade Lab: the Newton experience steps with fixed timeline time codes (24/s on this stage), so one
+    # app.update() advanced 5 physics steps and every render landed on an intermediate step with no recorded
+    # state ("render frame has no unique matching state history" on all cameras). One time code per physics
+    # step makes each update exactly one step, as on PhysX.
+    import omni.timeline
+    stage.SetTimeCodesPerSecond(1.0 / args.dt)
+    omni.timeline.get_timeline_interface().set_time_codes_per_second(1.0 / args.dt)
+    print(f"[bridge] newton: timeline time codes per second = {1.0 / args.dt:g} (one physics step per update)",
+          flush=True)
 print(f"[bridge] stage playback range: {ensure_time_code_range(stage)}", flush=True)
 print("[bridge] initializing contact reports", flush=True)
 if _REQUIRE_CUDA and args.engine == "physx":
@@ -2138,7 +2148,51 @@ def _reset_props_verified() -> dict:
         result["seed_fallbacks"] = list(fallbacks)
     if errors:
         result["error"] = "reset verification failed: " + "; ".join(errors)
+    elif _LAB_DROP:
+        result["lab_drop"] = _lab_drop_props()
     return result
+
+
+# Cascade Lab: after a VERIFIED reset, lift the configured props above the chute
+# exit with a seeded jitter and let PhysX drop them onto the table. The verified
+# rest spawns stay the reset contract; the drop is an experimental scene event.
+_LAB_DROP = (_scene_config.get("drop") if args.scene_config and _scene_config.get("lab_scene") else None) or None
+_lab_drop_count = [0]
+
+
+def _lab_drop_props() -> dict:
+    from isaacsim.core.experimental.prims import RigidPrim
+    import random as _random
+
+    cfg = _LAB_DROP
+    names = [n for n in cfg.get("props", list(_PROP_SPAWNS)) if n in _PROP_SPAWNS]
+    _lab_drop_count[0] += 1
+    rng = _random.Random(int(cfg.get("seed", 7)) * 1000 + _lab_drop_count[0])
+    cx, cy = cfg.get("center_xy_m", (0.25, 0.10))
+    jitter, height, spacing = float(cfg.get("jitter_m", 0.04)), float(cfg.get("height_m", 0.14)), \
+        float(cfg.get("spacing_s", 0.35))
+    dropped = []
+    for i, name in enumerate(names):
+        x = cx + rng.uniform(-jitter, jitter) + (i - (len(names) - 1) / 2) * float(cfg.get("spread_m", 0.07))
+        y = cy + rng.uniform(-jitter, jitter)
+        # _newton_teleport writes an identity orientation, so Newton drops keep yaw 0.
+        yaw = rng.uniform(-math.pi, math.pi) if args.engine != "newton" else 0.0
+        rp = RigidPrim(f"/World_Props/{name}", reset_xform_op_properties=True)
+        rp.set_world_poses(np.array([[x, y, _PROP_SPAWNS[name][2] + height + BASE_Z]]),
+                           np.array([[math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]]))
+        _zero_prop_velocity(rp)
+        if args.engine == "newton" and not _newton_teleport(name, (x, y, _PROP_SPAWNS[name][2] + height)):
+            raise RuntimeError(f"Newton lab drop rejected prop {name}")
+        for _ in range(max(1, int(spacing / max(args.dt, 1e-4)))):
+            _step_with_frame_history()
+        dropped.append({"name": name, "release_xy_m": [round(x, 4), round(y, 4)], "release_height_m": height})
+    for _ in range(int(1.5 / max(args.dt, 1e-4))):
+        _step_with_frame_history()
+    final = {}
+    for name in names:
+        p = np.asarray(RigidPrim(f"/World_Props/{name}").get_world_poses()[0].numpy(), dtype=float).reshape(3)
+        final[name] = [round(float(p[0]), 4), round(float(p[1]), 4), round(float(p[2] - BASE_Z), 4)]
+    return {"count": _lab_drop_count[0], "dropped": dropped, "landed_m": final}
 
 
 _ovrtx = None

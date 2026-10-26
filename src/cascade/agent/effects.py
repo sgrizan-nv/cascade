@@ -101,6 +101,13 @@ _ACTUATION_KEYS = ("arm_motions", "gripper_closes", "gripper_opens")
 _ERROR_QUOTE_CHARS = 160
 
 
+def _lab_fixture_names(destination) -> set:
+    """Cascade Lab: canonical fixture names ("metal_bin", "steel_peg") a spoken destination resolves to."""
+    from ..sim.placement import lab_bin_fixture, lab_peg_fixture
+    peg = lab_peg_fixture(destination)
+    return {n for n in (lab_bin_fixture(destination), peg["name"] if peg else None) if n}
+
+
 @dataclass
 class Postcondition:
     """Verdict on one primitive's physical effect."""
@@ -614,7 +621,8 @@ class PostconditionChecker:
                 pc.status, pc.evidence, pc.measured = (
                     report["status"], report["evidence"], report["measured"])
                 if (pc.status == CONFIRMED
-                        and pc.measured.get("destination") != result.get("destination")):
+                        and pc.measured.get("destination") != result.get("destination")
+                        and pc.measured.get("destination") not in _lab_fixture_names(result.get("destination"))):
                     pc.status = UNVERIFIED
                     pc.evidence = "requested and reported placement destinations differ"
                 return

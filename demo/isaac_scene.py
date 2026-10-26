@@ -106,6 +106,9 @@ def convex_points(kind, dimensions, segments=24, rings=12):
                        hi + (j + 1) % segments, hi + j] for j in range(segments)]
         lo, top = 1 + (rings - 2) * segments, len(pts) - 1
         faces += [[lo + j, lo + (j + 1) % segments, top] for j in range(segments)]
+    elif kind == "box":
+        pts = [(sx * a, sy * b, sz * c) for sz in (-1, 1) for sy in (-1, 1) for sx in (-1, 1)]
+        faces = [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [0, 4, 6, 2], [1, 3, 7, 5]]
     else:
         raise ValueError(f"Unknown proxy {kind}")
     return pts, faces
@@ -220,9 +223,22 @@ def _prepare_box(stage, config, cube):
         ("back", (x,y+(depth-wall)/2,(height+floor)/2), (width-2*wall,wall,height-floor)),
     ]
     color = tuple(box["color"])
+    painted = box.get("style") == "painted_steel"
+    if painted:
+        root.SetCustomDataByKey("description", "Painted steel parts tray with four walls and a floor; cavity faces +Z")
+        material = _surface_material(stage, "/World_Props/Looks/TrayPaint", color, roughness=.38)
+        UsdShade.Shader(material.GetPrim().GetChild("Surface")).GetInput("metallic").Set(.35)
     for name, position, dimensions in parts:
         mesh = cube("/World_Props/open_box/" + name, position, dimensions, color, dynamic=False)
-        decorate_cube(stage, mesh, color, wood=True)
+        if painted:
+            UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(material)
+        else:
+            decorate_cube(stage, mesh, color, wood=True)
+    if box.get("label") and config.get("lab_scene"):
+        root.SetCustomDataByKey("description", box.get("description", root.GetCustomDataByKey("description")))
+        from lab_scenes import author_sorting_bin_dressing
+        author_sorting_bin_dressing(stage, "/World_Props/open_box/Dressing", (x, y), (width, depth, height),
+                                    box["label"], floor)
 
 
 def _prepare_target_pad(stage, config):
@@ -300,8 +316,13 @@ def prepare_scene(stage, config, *, cube, bind_pmat, base_z, is_playing):
     if not stage.GetPrimAtPath(config["robot_prim"]):
         raise ValueError("Expected shipped reBot articulation root is missing")
 
-    from cocina_asier import author_kitchen
-    background = author_kitchen(stage, counter=config["counter"])
+    lab_scene = config.get("lab_scene")
+    if lab_scene:
+        from lab_scenes import author_lab_room
+        background = author_lab_room(stage, lab_scene, counter=config["counter"])
+    else:
+        from cocina_asier import author_kitchen
+        background = author_kitchen(stage, counter=config["counter"])
     # The visual room must never add a second simulation or collision body.
     for prim in Usd.PrimRange(background):
         schemas = prim.GetMetadata("apiSchemas")
@@ -328,8 +349,10 @@ def prepare_scene(stage, config, *, cube, bind_pmat, base_z, is_playing):
     specs = []
     for item in config["props"]:
         name = item["name"]
-        if name not in {"tomato_can", "lemon", "orange"}:
+        if not lab_scene and name not in {"tomato_can", "lemon", "orange"}:
             raise ValueError(f"Unexpected prop name {name}")
+        if lab_scene and (not name.replace("_", "").isalnum() or not name.islower()):
+            raise ValueError(f"Lab prop names must be lower_snake_case: {name}")
         path = f"/World_Props/{name}"
         if stage.GetPrimAtPath(path):
             raise ValueError(f"Prop already exists: {path}")
@@ -347,7 +370,12 @@ def prepare_scene(stage, config, *, cube, bind_pmat, base_z, is_playing):
         UsdPhysics.RigidBodyAPI(body).CreateRigidBodyEnabledAttr(True)
         UsdPhysics.RigidBodyAPI(body).CreateKinematicEnabledAttr(False)
         UsdPhysics.MassAPI(body).CreateCenterOfMassAttr(Gf.Vec3f(0))
-        if name == "orange":
+        if lab_scene and str(item.get("visual", "")).startswith("lab:"):
+            from lab_scenes import author_lab_prop
+            author_lab_prop(stage, path + "/Visual", item["visual"][4:], item["visual_dimensions"],
+                            item["color"])
+            _matrix(stage.GetPrimAtPath(path + "/Visual"), item["visual_offset"])
+        elif name == "orange":
             if item.get("visual") != "procedural_orange" or "asset" in item:
                 raise ValueError("Orange must use the original procedural visual")
             from own_kitchen_props import author_orange
@@ -358,16 +386,98 @@ def prepare_scene(stage, config, *, cube, bind_pmat, base_z, is_playing):
             if "visual_scale" in item:
                 _scale_and_texture_visual(stage, visual, float(item["visual_scale"]))
             _matrix(visual, item["visual_offset"])
-        collision = UsdGeom.Mesh.Define(stage, path + "/Collision")
-        mesh_geometry(collision, *convex_points(item["proxy"], item["dimensions"]))
-        collision.CreateVisibilityAttr("invisible")
-        UsdPhysics.CollisionAPI.Apply(collision.GetPrim()).CreateCollisionEnabledAttr(True)
-        UsdPhysics.MeshCollisionAPI.Apply(collision.GetPrim()).CreateApproximationAttr("convexHull")
-        bind_pmat(collision.GetPrim())
+        if lab_scene and item["proxy"] == "ring":
+            _ring_colliders(stage, path, item, bind_pmat)
+        else:
+            collision = UsdGeom.Mesh.Define(stage, path + "/Collision")
+            mesh_geometry(collision, *convex_points(item["proxy"], item["dimensions"]))
+            collision.CreateVisibilityAttr("invisible")
+            UsdPhysics.CollisionAPI.Apply(collision.GetPrim()).CreateCollisionEnabledAttr(True)
+            UsdPhysics.MeshCollisionAPI.Apply(collision.GetPrim()).CreateApproximationAttr("convexHull")
+            bind_pmat(collision.GetPrim())
         specs.append(PropSpec(name, tuple(item["position"]), tuple(item["color"]),
                               tuple(item["dimensions"]), tuple(item["visual_dimensions"]),
                               tuple(item["visual_offset"]), float(item["mass"]), path))
+    for fixture in config.get("fixtures", []) if lab_scene else []:
+        _prepare_fixture(stage, fixture, cube, bind_pmat)
     return specs
+
+
+def _ring_colliders(stage, path, item, bind_pmat, segments=12):
+    """Compound ring: N convex wedges under one rigid body, leaving a real bore."""
+    outer = item["dimensions"][0] / 2
+    inner = outer * float(item.get("bore_ratio", .55))
+    half = item["dimensions"][2] / 2
+    for k in range(segments):
+        a0, a1 = 2 * math.pi * k / segments, 2 * math.pi * (k + 1) / segments
+        corners = [(r * math.cos(a), r * math.sin(a)) for r, a in ((inner, a0), (outer, a0), (outer, a1), (inner, a1))]
+        pts = [(x, y, z) for z in (-half, half) for x, y in corners]
+        faces = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+        mesh = UsdGeom.Mesh.Define(stage, path + ("/Collision" if k == 0 else f"/Collision_{k}"))
+        mesh_geometry(mesh, pts, faces)
+        mesh.CreateVisibilityAttr("invisible")
+        UsdPhysics.CollisionAPI.Apply(mesh.GetPrim()).CreateCollisionEnabledAttr(True)
+        UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim()).CreateApproximationAttr("convexHull")
+        bind_pmat(mesh.GetPrim())
+
+
+def _prepare_bin_fixture(stage, fixture, cube):
+    """Static open sorting bin: floor + four wall colliders (like the open box), painted, labelled."""
+    name = fixture["name"]
+    x, y = fixture["position"]
+    width, depth, height = (float(v) for v in fixture["outer_dimensions_m"])
+    wall, floor = float(fixture["wall_thickness_m"]), float(fixture["base_thickness_m"])
+    if not (0 < floor < height and 0 < 2 * wall < min(width, depth) and min(width, depth) - 2 * wall >= .12):
+        raise ValueError(f"Bin fixture {name} needs a floor and an opening of at least 12 cm")
+    root = stage.DefinePrim(f"/World_Props/{name}", "Xform")
+    root.SetCustomDataByKey("description", fixture.get("description", "Open sorting bin fixed to the deck"))
+    root.SetCustomDataByKey("support_top_z_m", floor)
+    color = tuple(fixture["color"])
+    material = _surface_material(stage, f"/World_Props/Looks/{name}_paint", color, roughness=.42)
+    UsdShade.Shader(material.GetPrim().GetChild("Surface")).GetInput("metallic").Set(.15)
+    parts = [
+        ("floor", (x, y, floor / 2), (width, depth, floor)),
+        ("left", (x - (width - wall) / 2, y, (height + floor) / 2), (wall, depth, height - floor)),
+        ("right", (x + (width - wall) / 2, y, (height + floor) / 2), (wall, depth, height - floor)),
+        ("front", (x, y - (depth - wall) / 2, (height + floor) / 2), (width - 2 * wall, wall, height - floor)),
+        ("back", (x, y + (depth - wall) / 2, (height + floor) / 2), (width - 2 * wall, wall, height - floor)),
+    ]
+    for part, position, dimensions in parts:
+        mesh = cube(f"/World_Props/{name}/{part}", position, dimensions, color, dynamic=False)
+        UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(material)
+    if fixture.get("label"):
+        from lab_scenes import author_sorting_bin_dressing
+        author_sorting_bin_dressing(stage, f"/World_Props/{name}/Dressing", (x, y), (width, depth, height),
+                                    fixture["label"], floor)
+
+
+def _prepare_fixture(stage, fixture, cube, bind_pmat):
+    """Static lab fixture (peg): registered like furniture, cylindrical collider, steel visual."""
+    name = fixture["name"]
+    if name.replace("_", "").isalnum() and fixture.get("kind") == "bin":
+        return _prepare_bin_fixture(stage, fixture, cube)
+    if not name.replace("_", "").isalnum() or fixture.get("kind") != "peg":
+        raise ValueError(f"Unsupported lab fixture {name}")
+    x, y = fixture["position"]
+    d, h = float(fixture["diameter"]), float(fixture["height"])
+    path = f"/World_Props/{name}"
+    root_mesh = cube(path, (x, y, h / 2), (d, d, h), tuple(fixture["color"]), dynamic=False)
+    body = root_mesh.GetPrim()
+    body.RemoveAPI(UsdPhysics.CollisionAPI)
+    body.RemoveAPI(UsdPhysics.MeshCollisionAPI)
+    body.SetTypeName("Xform")
+    for attr in ("points", "faceVertexCounts", "faceVertexIndices", "extent",
+                 "subdivisionScheme", "primvars:displayColor", "physics:approximation"):
+        body.RemoveProperty(attr)
+    body.SetCustomDataByKey("description", fixture.get("description", "Steel peg fixed to the bench"))
+    collision = UsdGeom.Mesh.Define(stage, path + "/Collision")
+    mesh_geometry(collision, *convex_points("cylinder", (d, d, h)))
+    collision.CreateVisibilityAttr("invisible")
+    UsdPhysics.CollisionAPI.Apply(collision.GetPrim()).CreateCollisionEnabledAttr(True)
+    UsdPhysics.MeshCollisionAPI.Apply(collision.GetPrim()).CreateApproximationAttr("convexHull")
+    bind_pmat(collision.GetPrim())
+    from lab_scenes import author_peg_visual
+    author_peg_visual(stage, path + "/Visual", d, h, tuple(fixture["color"]))
 
 
 # Original rounded painted-stone and unbranded puzzle surfaces.

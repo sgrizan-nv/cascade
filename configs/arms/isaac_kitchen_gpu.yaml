@@ -2,7 +2,7 @@
 extends: isaac_kitchen
 overrides:
   grasp:
-    backend: graspgenx
+    backend: obb
     graspgenx:
       # Spark starts and warms the real CUDA model before the robot runtime.
       required: true

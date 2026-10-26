@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#07090a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cascade Lab">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>Cascade Lab · Experimental robot cells</title>
+<script>document.documentElement.dataset.theme = localStorage.cascadeThemeV2 || "light";</script>
+<style>
+:root {
+  --bg: #07090a; --panel: rgba(255,255,255,.035); --panel2: rgba(255,255,255,.06); --line: rgba(255,255,255,.08);
+  --text: #eef2ea; --muted: #8b948a; --dim: #5d665b; --g: #76B900; --g2: #a3e635; --red: #ff4d4f; --amber: #f5a524;
+  --r: 18px; --safe-b: env(safe-area-inset-bottom); --safe-t: env(safe-area-inset-top);
+}
+:root[data-theme="light"] { --bg: #f4f6f1; --panel: rgba(16,20,15,.035); --panel2: rgba(16,20,15,.065); --line: rgba(16,20,15,.11);
+  --text: #11160f; --muted: #566052; --dim: #8a9387; color-scheme: light; }
+:root[data-theme="light"] body { background: radial-gradient(ellipse 90% 40% at 50% -5%, rgba(118,185,0,.2), transparent 60%), var(--bg); }
+:root[data-theme="light"] .composer { background: rgba(244,246,241,.86); }
+:root[data-theme="light"] .composer textarea { background: #fff; }
+:root[data-theme="light"] .stage, :root[data-theme="light"] .thumb { background: #dfe4da; }
+:root[data-theme="light"] .offline { background: #dfe4da; }
+:root[data-theme="light"] .sheet { background: #fff; }
+:root[data-theme="light"] .toast { background: #fff; }
+:root[data-theme="light"] .chip.on, :root[data-theme="light"] .preview p { color: #2f5200; }
+:root[data-theme="light"] .preview p.ph { color: var(--dim); }
+:root[data-theme="light"] .tag { color: #3d6b00; background: rgba(118,185,0,.14); }
+:root[data-theme="light"] .msg.bot.err { color: #b42318; }
+:root[data-theme="light"] .ghost b { color: #7d8779; }
+:root[data-theme="light"] .qa:hover { background: rgba(118,185,0,.1); }
+html { overflow-x: hidden; overscroll-behavior-y: none; } body { overflow-x: clip; }
+header > * { min-width: 0; }
+.brand { overflow: hidden; }
+.brand b, .brand small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+header .pill, header .iconbtn, header .logo, header .root { flex: none; }
+@media (max-width: 440px) { .brand small { display: none; } header { gap: 8px; } .pill { padding: 7px 10px; } }
+.is-reserved:not(.is-admin) .send { opacity: .3; pointer-events: none; box-shadow: none; }
+.is-reserved:not(.is-admin) .sugg { display: none; }
+.root { display: none; font-size: .64rem; font-weight: 900; letter-spacing: .12em; padding: 4px 7px; border-radius: 7px;
+  background: var(--red); color: #fff; }
+.is-admin .root { display: inline-block; }
+header { position: relative; }
+header .root { position: absolute; left: 18px; top: 0; font-size: .5rem; padding: 2px 5px; border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+.admin-only { display: none; }
+.is-admin .admin-only { display: block; }
+.sheet .sec { font-size: .7rem; font-weight: 800; letter-spacing: .12em; color: var(--muted); text-transform: uppercase;
+  margin: 14px 2px 8px; }
+.switch { margin-left: auto; width: 46px; height: 28px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line);
+  position: relative; flex: none; transition: background .2s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+.switch.on { background: var(--g); border-color: var(--g); }
+.switch.on::after { transform: translateX(18px); }
+.cancel { align-self: flex-start; font-size: .74rem; font-weight: 700; color: var(--red); padding: 4px 10px; border-radius: 9px;
+  border: 1px solid rgba(255,77,79,.35); background: rgba(255,77,79,.08); }
+.msg.bot.cancelled { opacity: .7; font-style: italic; }
+.reserved-banner { display: none; margin-top: 12px; padding: 12px 14px; border-radius: 14px; font-size: .84rem; font-weight: 600;
+  background: rgba(245,165,36,.12); border: 1px solid rgba(245,165,36,.35); color: var(--amber); }
+.is-reserved .reserved-banner { display: block; }
+.is-admin.is-reserved .reserved-banner { background: rgba(118,185,0,.12); border-color: rgba(118,185,0,.4); color: var(--g2); }
+:root[data-theme="light"] .is-admin.is-reserved .reserved-banner { color: #3d6b00; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { background: var(--bg); }
+body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: var(--text);
+  background: radial-gradient(ellipse 90% 40% at 50% -5%, rgba(118,185,0,.16), transparent 60%), var(--bg);
+  min-height: 100dvh; -webkit-font-smoothing: antialiased; overscroll-behavior-y: none; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.app { max-width: 1440px; margin: 0 auto; padding: calc(var(--safe-t) + 10px) 14px calc(var(--safe-b) + 96px); }
+
+/* header */
+header { display: flex; align-items: center; gap: 10px; padding: 4px 2px 12px; }
+.logo { width: 34px; height: 34px; flex: none; }
+.brand { line-height: 1.05; }
+.brand b { font-size: 1.05rem; letter-spacing: .14em; font-weight: 900; }
+.brand small { display: block; font-size: .72rem; color: var(--muted); letter-spacing: .02em; margin-top: 2px; }
+.spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; font-size: .78rem;
+  font-weight: 650; background: var(--panel2); border: 1px solid var(--line); white-space: nowrap; }
+.pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--g); box-shadow: 0 0 10px var(--g); }
+.pill.busy i { background: var(--amber); box-shadow: 0 0 10px var(--amber); animation: pulse 1s infinite; }
+.pill.off i { background: var(--red); box-shadow: 0 0 10px var(--red); }
+.iconbtn { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--panel2);
+  border: 1px solid var(--line); }
+.iconbtn svg { width: 18px; height: 18px; }
+
+/* layout */
+.layout { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+.layout > * { min-width: 0; }
+@media (min-width: 960px) {
+  .app { padding-bottom: 24px; }
+  .layout { grid-template-columns: minmax(0, 1.6fr) minmax(380px, 1fr); align-items: start; }
+  .side { position: sticky; top: 12px; height: calc(100dvh - 90px); display: flex; flex-direction: column; }
+  .side .chat { flex: 1; min-height: 0; overflow-y: auto; }
+  .composer { position: static !important; margin-top: 10px; padding: 0 !important; background: none !important;
+    border: 0 !important; backdrop-filter: none !important; }
+}
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.section-title { font-size: .72rem; font-weight: 750; letter-spacing: .12em; color: var(--muted); text-transform: uppercase;
+  margin: 4px 4px 10px; display: flex; align-items: center; gap: 8px; }
+.section-title span { color: var(--dim); font-weight: 600; letter-spacing: .02em; text-transform: none; }
+
+/* stage */
+.stage { position: relative; border-radius: var(--r); overflow: hidden; background: #0d110c; aspect-ratio: 16 / 10;
+  border: 1px solid var(--line); touch-action: pan-y; user-select: none; }
+.stage img.main { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.stage .shade { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,.45), transparent 22%, transparent 70%, rgba(0,0,0,.55)); }
+.stage .tl { position: absolute; top: 12px; left: 12px; display: flex; gap: 8px; align-items: center; }
+.live { display: inline-flex; gap: 6px; align-items: center; font-size: .7rem; font-weight: 800; letter-spacing: .12em;
+  padding: 5px 9px; border-radius: 8px; background: rgba(0,0,0,.55); backdrop-filter: blur(8px); }
+.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: pulse 1.4s infinite; }
+.camname { font-size: .78rem; font-weight: 650; padding: 5px 9px; border-radius: 8px; background: rgba(0,0,0,.55);
+  backdrop-filter: blur(8px); text-transform: capitalize; }
+.stage .tr { position: absolute; top: 10px; right: 10px; }
+.stage .tr button { width: 36px; height: 36px; border-radius: 10px; background: rgba(0,0,0,.5); display: grid;
+  place-items: center; backdrop-filter: blur(8px); }
+.stage .tr svg { width: 18px; height: 18px; }
+.stop { position: absolute; right: 12px; bottom: 12px; display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 16px; border-radius: 14px; font-weight: 850; letter-spacing: .1em; font-size: .82rem;
+  background: var(--red); color: #fff; box-shadow: 0 8px 24px rgba(255,77,79,.4); }
+.stop:active { transform: scale(.96); }
+.stop i { width: 10px; height: 10px; background: #fff; border-radius: 2px; }
+.arrows { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center;
+  pointer-events: none; padding: 0 6px; }
+.arrows button { pointer-events: auto; width: 34px; height: 54px; border-radius: 12px; background: rgba(0,0,0,.28);
+  display: grid; place-items: center; opacity: .75; }
+.arrows svg { width: 18px; height: 18px; }
+.swipehint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 6px; }
+.swipehint i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.35); transition: all .2s; }
+.swipehint i.on { width: 18px; border-radius: 4px; background: #fff; }
+.offline { position: absolute; inset: 0; display: none; place-items: center; text-align: center; color: var(--muted);
+  font-size: .9rem; background: #0d110c; }
+.stage.isoff .offline { display: grid; }
+.stage.full { position: fixed; inset: 0; z-index: 50; border-radius: 0; aspect-ratio: auto; background: #000; border: 0; }
+.stage.full img.main { object-fit: contain; }
+
+.thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.thumb { position: relative; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; border: 2px solid transparent;
+  background: #0d110c; transition: border-color .2s, transform .1s; }
+.thumb:active { transform: scale(.97); }
+.thumb.on { border-color: var(--g); box-shadow: 0 0 0 3px rgba(118,185,0,.18); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: .85; }
+.thumb span { position: absolute; left: 6px; bottom: 5px; font-size: .68rem; font-weight: 750; letter-spacing: .04em;
+  padding: 2px 6px; border-radius: 6px; background: rgba(0,0,0,.6); text-transform: capitalize; }
+
+/* now */
+.now { margin-top: 12px; padding: 14px 16px; display: flex; gap: 12px; align-items: center; }
+.now .orb { width: 40px; height: 40px; border-radius: 12px; flex: none; display: grid; place-items: center;
+  background: rgba(118,185,0,.14); color: var(--g2); font-size: 1.2rem; }
+.now.busy .orb { background: rgba(245,165,36,.14); color: var(--amber); }
+.now .txt { min-width: 0; flex: 1; }
+.now b { display: block; font-size: .92rem; }
+.now small { display: block; font-size: .8rem; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.bar { height: 3px; border-radius: 3px; background: var(--panel2); overflow: hidden; margin-top: 8px; display: none; }
+.now.busy .bar { display: block; }
+.bar i { display: block; height: 100%; width: 35%; background: linear-gradient(90deg, transparent, var(--amber), transparent);
+  animation: slide 1.3s infinite ease-in-out; }
+
+/* quick actions */
+.quick { display: grid; grid-auto-flow: column; grid-auto-columns: 148px; gap: 10px; overflow-x: auto;
+  scroll-snap-type: x mandatory; scroll-padding-inline: 14px; padding: 2px 14px 6px; margin: 0 -14px;
+  scrollbar-width: none; }
+.quick::-webkit-scrollbar { display: none; }
+@media (min-width: 960px) { .quick { grid-auto-flow: row; grid-template-columns: repeat(4, 1fr); grid-auto-columns: auto;
+  margin: 0; padding: 0; overflow: visible; } }
+.qa { scroll-snap-align: start; text-align: left; padding: 14px; border-radius: 16px; background: var(--panel);
+  border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; min-height: 108px;
+  transition: transform .1s, border-color .2s, background .2s; }
+.qa:active { transform: scale(.97); }
+.qa:hover { border-color: rgba(118,185,0,.45); background: rgba(118,185,0,.06); }
+.qa .em { font-size: 1.5rem; line-height: 1; letter-spacing: 2px; }
+.qa b { font-size: .86rem; font-weight: 700; line-height: 1.25; }
+.qa small { font-size: .72rem; color: var(--muted); margin-top: auto; }
+
+/* builder */
+.builder { padding: 14px; margin-top: 4px; }
+.step { font-size: .74rem; color: var(--muted); font-weight: 650; margin: 2px 2px 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.chip { display: inline-flex; align-items: center; gap: 7px; padding: 9px 13px; border-radius: 999px; font-size: .86rem;
+  font-weight: 600; background: var(--panel2); border: 1px solid var(--line); transition: all .15s; }
+.chip:active { transform: scale(.96); }
+.chip.on { background: rgba(118,185,0,.16); border-color: var(--g); color: #e9ffd0; }
+.chip .sw { width: 12px; height: 12px; border-radius: 4px; }
+.preview { display: flex; gap: 10px; align-items: center; padding: 10px 10px 10px 14px; border-radius: 14px;
+  background: rgba(118,185,0,.07); border: 1px dashed rgba(118,185,0,.35); }
+.preview p { flex: 1; font-size: .9rem; color: #dff5c0; min-height: 1.2em; }
+.preview p.ph { color: var(--dim); }
+.btn { padding: 10px 16px; border-radius: 12px; font-weight: 750; font-size: .86rem; background: var(--g); color: #07090a;
+  white-space: nowrap; }
+.btn:disabled { opacity: .35; }
+
+/* chat */
+.tabs { display: inline-flex; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 3px;
+  margin-left: auto; }
+.tabs button { padding: 5px 11px; border-radius: 9px; font-size: .74rem; font-weight: 700; color: var(--muted);
+  letter-spacing: 0; text-transform: none; }
+.tabs button.on { background: rgba(255,255,255,.1); color: var(--text); }
+.chat { padding: 12px; display: flex; flex-direction: column; gap: 12px; min-height: 140px; }
+.empty { text-align: center; color: var(--dim); font-size: .86rem; padding: 26px 10px; line-height: 1.5; }
+.turn { display: flex; flex-direction: column; gap: 6px; animation: up .3s ease-out both; }
+.msg { max-width: 86%; padding: 10px 13px; border-radius: 16px; font-size: .9rem; line-height: 1.42; white-space: pre-wrap;
+  word-wrap: break-word; }
+.msg.user { align-self: flex-end; background: var(--g); color: #07090a; border-bottom-right-radius: 5px; font-weight: 550; }
+.msg.user.other { background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
+.msg.bot { align-self: flex-start; background: var(--panel2); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+.msg.bot.err { border-color: rgba(255,77,79,.4); color: #ffd1d1; }
+.meta { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: .7rem; color: var(--dim); }
+.meta.r { justify-content: flex-end; }
+.tag { padding: 2px 7px; border-radius: 6px; background: rgba(118,185,0,.1); color: #b8e07a; font-weight: 650; }
+.typing { display: inline-flex; gap: 4px; align-items: center; }
+.typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: bounce 1.2s infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+
+/* composer */
+.composer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; padding: 10px 12px calc(var(--safe-b) + 10px);
+  background: rgba(7,9,10,.82); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border-top: 1px solid var(--line); }
+.composer form { max-width: 1440px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; }
+.inputwrap { position: relative; flex: 1; }
+.composer textarea { width: 100%; resize: none; max-height: 120px; min-height: 48px; padding: 13px 16px; border-radius: 16px;
+  background: #10140f; border: 1.5px solid var(--line); color: var(--text); font: inherit; font-size: 16px; outline: none;
+  line-height: 1.35; transition: border-color .2s; }
+.composer textarea:focus { border-color: rgba(118,185,0,.7); }
+.ghost { position: absolute; left: 17.5px; right: 16px; top: 14.5px; pointer-events: none; color: var(--dim); font-size: 16px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity .35s; }
+.ghost b { color: #6f7b6c; font-weight: 600; }
+.send { width: 48px; height: 48px; border-radius: 16px; flex: none; background: var(--g); display: grid; place-items: center;
+  color: #07090a; box-shadow: 0 6px 18px rgba(118,185,0,.3); transition: transform .1s, opacity .2s; }
+.send:active { transform: scale(.94); }
+.send:disabled { opacity: .35; box-shadow: none; }
+.send svg { width: 20px; height: 20px; }
+.sugg { max-width: 1440px; margin: 0 auto 8px; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.sugg::-webkit-scrollbar { display: none; }
+.sugg button { flex: none; padding: 6px 11px; border-radius: 999px; font-size: .76rem; color: var(--muted);
+  background: var(--panel2); border: 1px solid var(--line); }
+@media (min-width: 960px) { .sugg { display: none; } }
+
+/* sheet + toast */
+.sheet-bg { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.5); display: none; }
+.sheet-bg.on { display: block; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; padding: 10px 16px calc(var(--safe-b) + 16px);
+  background: #10140f; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; transform: translateY(105%);
+  transition: transform .25s ease; max-width: 560px; margin: 0 auto; }
+.sheet.on { transform: none; }
+.sheet .grab { width: 40px; height: 4px; border-radius: 4px; background: var(--line); margin: 0 auto 14px; }
+.sheet h3 { font-size: 1rem; margin-bottom: 4px; }
+.sheet p { font-size: .84rem; color: var(--muted); line-height: 1.5; margin-bottom: 12px; }
+.sheet .row { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; padding: 13px 12px; border-radius: 14px;
+  background: var(--panel); border: 1px solid var(--line); margin-bottom: 8px; font-weight: 650; font-size: .9rem; }
+.sheet .row small { display: block; font-weight: 500; color: var(--muted); font-size: .76rem; margin-top: 2px; }
+.toast { position: fixed; left: 50%; top: calc(var(--safe-t) + 14px); transform: translate(-50%, -140%); z-index: 80;
+  padding: 10px 16px; border-radius: 14px; background: #1a2117; border: 1px solid var(--line); font-size: .86rem;
+  font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.4); transition: transform .3s ease; max-width: 90vw; }
+.toast.on { transform: translate(-50%, 0); }
+
+@keyframes pulse { 50% { opacity: .35; } }
+@keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+@keyframes bounce { 0%, 60%, 100% { transform: none; opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+@keyframes up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.labtag { font-style: normal; font-size: .62rem; letter-spacing: .12em; padding: 2px 6px; margin-left: 4px;
+  border-radius: 6px; background: var(--accent, #f5a623); color: #111; vertical-align: 3px; font-weight: 900; }
+.scn { display: flex; gap: 8px; padding: 2px 14px 10px; overflow-x: auto; scrollbar-width: none; }
+.scn::-webkit-scrollbar { display: none; }
+.scn button { flex: 1 0 auto; min-width: 140px; display: flex; align-items: center; gap: 10px; text-align: left;
+  border: 1px solid var(--line, rgba(255,255,255,.12)); background: var(--card, rgba(255,255,255,.04));
+  color: inherit; border-radius: 16px; padding: 10px 12px; cursor: pointer; transition: transform .15s, border-color .2s; }
+.scn button:active { transform: scale(.97); }
+.scn button .ic { font-size: 1.5rem; line-height: 1; }
+.scn button b { display: block; font-size: .95rem; }
+.scn button small { display: block; font-size: .7rem; opacity: .7; }
+.scn button .hd { width: 9px; height: 9px; border-radius: 50%; margin-left: auto; background: #888; flex: none; }
+.scn button .hd.healthy { background: #2ec27e; box-shadow: 0 0 8px #2ec27e; }
+.scn button .hd.starting { background: #f5a623; }
+.scn button.on { border-color: var(--accent, #f5a623); box-shadow: 0 0 0 1px var(--accent, #f5a623) inset; }
+
+.ducksel { display: none; flex-wrap: wrap; gap: 7px; align-items: center; padding: 10px 2px 2px; }
+.ducksel.show { display: flex; }
+.ducksel .dl { font-size: .75rem; opacity: .7; margin-right: 4px; width: 100%; }
+.ducksel button { width: 40px; height: 40px; border-radius: 50%; border: 3px solid rgba(0,0,0,.35); font-weight: 900;
+  font-size: .95rem; cursor: pointer; transition: transform .12s; }
+.ducksel button.on { border-color: #fff; box-shadow: 0 0 0 3px var(--accent, #ffcc33); transform: scale(1.08); }
+.simabout { display: none; font-size: .8rem; line-height: 1.4; opacity: .8; margin-top: 12px; padding: 12px 14px; }
+body.is-sim .simabout { display: block; }
+body.is-sim .builder, body.is-sim .bt, body.is-sim .side { display: none !important; }
+body.is-sim .layout { grid-template-columns: minmax(0, 1fr) !important; max-width: 1180px; margin: 0 auto; }
+@media (min-width: 960px) { body.is-sim .quick { grid-template-columns: repeat(5, 1fr); } }
+.orderbox { display: none; margin-top: 12px; padding: 12px 14px; }
+body.is-sim .orderbox { display: block; }
+.orderbox .ob-title { font-weight: 800; font-size: .9rem; margin-bottom: 8px; }
+.orderbox .ob-title span { font-weight: 500; opacity: .7; font-size: .78rem; }
+.orderbox form { display: flex; gap: 8px; }
+.orderbox input { flex: 1; min-width: 0; font: inherit; color: inherit; background: rgba(255,255,255,.06);
+  border: 1px solid var(--line, rgba(255,255,255,.14)); border-radius: 12px; padding: 10px 12px; }
+.orderbox .ob-out { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; margin-top: 8px; opacity: .9;
+  white-space: pre-wrap; word-break: break-word; min-height: 1.2em; }
+.orderbox .ob-ex { margin-top: 8px; }
+.orderbox .ob-ex button { font-size: .75rem; }
+/* LOWDATA_ONECAM */
+.stage .tr { display: flex; gap: 8px; }
+.stage .tr .qualchip { width: auto; padding: 0 10px; font-size: .7rem; font-weight: 800; letter-spacing: .06em; color: #fff; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: -2px 0 10px; }
+.seg button { padding: 10px 4px; border-radius: 11px; background: var(--panel); border: 1px solid var(--line); font-size: .76rem;
+  font-weight: 700; }
+.seg button.on { background: rgba(118,185,0,.16); border-color: var(--g); }
+#oneCamSeg { grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); }
+body.lowdata .thumbs, body.onecam .thumbs, body.onecam #dotsCam, body.onecam #prevCam, body.onecam #nextCam { display: none; }
+/* LOWDATA_ONECAM_3 */
+.sheet { max-height: 88vh; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* HARD_RESET: Keynote operator resets + health */
+.kreset { display: none; margin-top: 12px; padding: 12px; }
+body.has-hard .kreset { display: block; }
+.kr-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kr-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; padding: 14px 16px;
+  border-radius: 16px; border: 2px solid transparent; min-height: 92px; transition: transform .1s, filter .2s; }
+.kr-btn:active { transform: scale(.98); }
+.kr-btn .ic { font-size: 1.5rem; line-height: 1; }
+.kr-btn b { font-size: 1.12rem; font-weight: 900; letter-spacing: .02em; }
+.kr-btn small { font-size: .74rem; opacity: .85; line-height: 1.3; }
+.kr-btn.soft { background: #1d6fe0; color: #fff; }
+.kr-btn.hard { background: #c62828; color: #fff; }
+.kr-btn.hard.armed { background: #ff3b30; border-color: #fff; animation: pulse 0.8s infinite; }
+.kr-btn:disabled { filter: grayscale(.7) brightness(.7); cursor: wait; }
+.kr-health { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.kr-health span { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: .74rem;
+  font-weight: 650; background: var(--panel2); border: 1px solid var(--line); }
+.kr-health i { width: 9px; height: 9px; border-radius: 50%; background: #888; }
+.kr-health .ok i { background: var(--g); box-shadow: 0 0 8px var(--g); }
+.kr-health .bad i { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.kr-prog { display: none; margin-top: 10px; padding: 10px 12px; border-radius: 12px; font-size: .84rem; line-height: 1.45;
+  background: rgba(255,59,48,.10); border: 1px solid rgba(255,59,48,.35); }
+.kr-prog.on { display: block; }
+.kr-prog.good { background: rgba(118,185,0,.12); border-color: rgba(118,185,0,.4); }
+.kr-prog b { display: block; font-size: .92rem; margin-bottom: 4px; }
+.hard-only { display: none !important; }
+body.has-hard .hard-only { display: flex !important; }
+/* KEYNOTE_TAB: agent feed */
+.orderbox .ob-feed { margin-top: 10px; display: grid; gap: 6px; font-size: .78rem; }
+.orderbox .ob-feed:empty { display: none; }
+.orderbox .ob-feed > div { background: rgba(255,255,255,.05); border-radius: 10px; padding: 7px 10px; line-height: 1.35;
+  word-break: break-word; }
+.orderbox .ob-feed b { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; opacity: .9; }
+.orderbox .ob-feed span { opacity: .5; font-size: .68rem; margin-left: 4px; }
+.orderbox .ob-feed .k-tool b, .orderbox .ob-feed .k-check b { color: var(--accent); }
+.orderbox .ob-feed .busy { opacity: .75; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <svg class="logo" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <rect width="64" height="64" rx="16" fill="#76B900"/>
+      <path d="M18 46h28" stroke="#07090a" stroke-width="4" stroke-linecap="round"/>
+      <path d="M24 46V34l10-10 8 8" stroke="#07090a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="24" cy="34" r="3.2" fill="#07090a"/><circle cx="34" cy="24" r="3.2" fill="#07090a"/>
+      <path d="M42 32l4-4m-4 4l4 4" stroke="#07090a" stroke-width="3.4" stroke-linecap="round"/>
+    </svg>
+    <div class="brand"><b>CASCADE <em class="labtag">LAB</em></b><small id="brandSub">Experimental cells · Isaac Sim</small></div>
+    <span class="root" title="Operator mode">ROOT</span>
+    <div class="spacer"></div>
+    <div class="pill" id="pill"><i></i><span>Connecting</span></div>
+    <button class="iconbtn" id="themeBtn" aria-label="Switch light or dark theme">
+      <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+    <button class="iconbtn" id="menuBtn" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+    </button>
+  </header>
+  <nav class="scn" id="scn" aria-label="Choose a robot cell"></nav>
+
+  <div class="layout">
+    <main>
+      <div class="stage" id="stage">
+        <img class="main" id="camImg" alt="Live kitchen camera">
+        <div class="shade"></div>
+        <div class="offline">Camera reconnecting…</div>
+        <div class="tl"><span class="live"><i></i>LIVE</span><span class="camname" id="camName">kitchen</span></div>
+        <div class="tr"><button class="qualchip" id="qualChip" aria-label="Video quality">AUTO</button><button id="fullBtn" aria-label="Fullscreen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        </button></div>
+        <div class="arrows">
+          <button id="prevCam" aria-label="Previous camera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <button id="nextCam" aria-label="Next camera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
+        <div class="swipehint" id="dotsCam"></div>
+        <button class="stop" id="stopBtn"><i></i>STOP</button>
+      </div>
+      <div class="card kreset" id="kReset">
+        <div class="kr-row">
+          <button class="kr-btn soft" id="softBtn"><span class="ic">&#x21BA;</span><b>Soft reset</b><small>Ducks back to their start spots, Nemotron starts fresh. About 2 s.</small></button>
+          <button class="kr-btn hard" id="hardBtn"><span class="ic">&#x26A1;</span><b id="hardLabel">Hard reset</b><small id="hardSub">Restarts the simulation, the cameras and the AI if it is stuck. About 2 min.</small></button>
+        </div>
+        <div class="kr-health" id="krHealth"></div>
+        <div class="kr-prog" id="krProg"></div>
+      </div>
+      <div class="thumbs" id="thumbs"></div>
+      <div class="ducksel" id="duckSel"></div>
+
+      <div class="reserved-banner" id="reservedBanner"></div>
+      <div class="card now" id="now">
+        <div class="orb" id="orb">&#x2713;</div>
+        <div class="txt"><b id="nowTitle">Ready for you</b><small id="nowSub">Tap a card or type what the robot should do</small>
+          <div class="bar"><i></i></div></div>
+      </div>
+
+      <div style="height:16px"></div>
+      <div class="card simabout" id="simAbout"></div>
+      <div class="section-title">One tap <span id="oneTapSub">· the robot does it live</span></div>
+      <div class="quick" id="quick"></div>
+      <div class="card orderbox" id="orderBox">
+        <div class="ob-title">Type an order <span id="obBrain">&middot; NVIDIA Nemotron 3.5 Bolt turns it into a tool call</span></div>
+        <form id="obForm" autocomplete="off"><input id="obText" maxlength="200" placeholder="e.g. Regroup in the square" aria-label="Order for the ducks">
+          <button class="btn" id="obSend" type="submit">Send</button></form>
+        <div class="ob-out" id="obOut"></div>
+        <div class="ob-feed" id="obFeed"></div>
+        <div class="chips ob-ex" id="obEx"></div>
+      </div>
+
+      <div style="height:14px"></div>
+      <div class="section-title bt">Build a task <span>· pick an object, then where</span></div>
+      <div class="card builder">
+        <div class="step">1 · Object</div>
+        <div class="chips" id="objChips"></div>
+        <div class="step">2 · Where</div>
+        <div class="chips" id="dstChips"></div>
+        <div class="preview"><p id="preview" class="ph">Your task appears here</p>
+          <button class="btn" id="buildSend" disabled>Send</button></div>
+      </div>
+      <div style="height:14px"></div>
+    </main>
+
+    <aside class="side">
+      <div class="section-title">Conversation
+        <div class="tabs"><button class="on" data-tab="mine">Mine</button><button data-tab="all">Everyone</button></div>
+      </div>
+      <div class="card chat" id="chat"></div>
+      <div class="composer" id="composer">
+        <div class="sugg" id="sugg"></div>
+        <form id="form">
+          <div class="inputwrap">
+            <textarea id="text" rows="1" maxlength="280" enterkeyhint="send" aria-label="Message the robot"></textarea>
+            <div class="ghost" id="ghost"></div>
+          </div>
+          <button class="send" id="send" type="submit" aria-label="Send" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </form>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet">
+  <div class="grab"></div>
+  <h3 id="sheetTitle">Cascade Lab</h3>
+  <p>Experimental robot cells (NVIDIA Isaac Sim): switch between the workshop and the recycling plant at the top. Your words go to an AI agent (on OpenClaw) that looks
+    through the cameras and decides how to move. Everyone shares the same robot, so requests run one at a time.</p>
+  <button class="row" id="resetBtn">&#x21BA;<div><span id="resetLabel">Reset this cell</span><small id="resetSub">Put every object back where it started</small></div></button>
+  <button class="row" id="installBtn">&#x2295;<div>Add to home screen<small>Share &rarr; Add to Home Screen on iPhone</small></div></button>
+  <button class="row" id="themeRow">&#x25D0;<div>Light theme<small>Remembered on this device</small></div><span class="switch" id="themeSwitch"></span></button>
+  <div class="row" style="cursor:default">&#x25B6;<div>Video quality<small>Data saver and Bad connection send small pictures instead of live video and pause the thumbnails</small></div></div><div class="seg" id="qualSeg"><button data-q="auto">Auto</button><button data-q="low">Data saver</button><button data-q="min">Bad connection</button></div>
+  <div class="admin-only">
+    <div class="sec">Operator</div>
+    <button class="row" id="exclusiveRow">&#x1F512;<div>Reserve the robot for me<small>Only your requests run; everyone else can still watch</small></div><span class="switch" id="exclusiveSwitch"></span></button>
+    <button class="row" id="clearRow">&#x2715;<div>Cancel all waiting requests<small>Requests from other people in the queue</small></div></button>
+    <button class="row hard-only" id="hardNemoRow">&#x26A1;<div>Hard reset, Nemotron included<small>Keynote: also reloads the AI model even if it answers (about 6 min)</small></div></button>
+    <div class="row" style="cursor:default">&#x1F3A5;<div>Render one camera only<small>For everyone, in this cell: the other cameras stop streaming (and stop rendering in the duck cells)</small></div></div><div class="seg" id="oneCamSeg"></div>
+  </div>
+  <button class="row" id="logoutBtn">&#x21E5;<div>Log out<small>Go back to the password screen</small></div></button>
+  <button class="row" id="closeSheet">&#x2715;<div>Close</div></button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+let CAMS = ["kitchen", "worktop", "side"]; const BASE_CAMS = CAMS.slice();
+let DUCK = +(localStorage.cascadeLabDuck || 1) || 1, simUrl = "", simAt = 0, simRetryAt = 0;
+const DUCK_COLORS = ["#f23f3f", "#f99926", "#f9e033", "#72d84c", "#26b28c", "#3fccf2", "#3f72f2", "#8c59e5", "#e559cc", "#f9f9f9", "#333338", "#a5724c"];
+const isSim = () => !!(SPEC && SPEC.kind === "sim");
+const camQ = () => isSim() ? "&duck=" + DUCK : "";
+let SCNS = [], SCN = localStorage.cascadeLabScn || "workshop", SPEC = null;
+let OBJECTS = [], DESTS = [], QUICK = [], EXAMPLES = ["What can you see?"];
+const withS = p => p.startsWith("/api/") && !p.startsWith("/api/cam/") && !p.startsWith("/api/job/") ?
+  p + (p.includes("?") ? "&" : "?") + "s=" + encodeURIComponent(SCN) : p;
+const camLabel = c => (SPEC && SPEC.cam_labels && SPEC.cam_labels[c]) || c;
+const clientId = localStorage.cascadeClient || (localStorage.cascadeClient = (crypto.randomUUID ? crypto.randomUUID() :
+  String(Math.random()).slice(2)).replace(/-/g, "").slice(0, 24));
+const api = (path, opts = {}) => fetch(withS(path), { ...opts, headers: { "X-Client": clientId, "Content-Type": "application/json",
+  ...(opts.headers || {}) } }).then(async r => { if (r.status === 401) { location.replace("/"); throw new Error("login"); }
+  const ct = r.headers.get("content-type") || ""; const body = ct.includes("json") ? await r.json() : null;
+  if (!r.ok) throw Object.assign(new Error((body && (body.error || body.message)) || r.statusText), { status: r.status, body });
+  return body; });
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let toastT;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove("on"), 2600); }
+const buzz = p => navigator.vibrate && navigator.vibrate(p);
+
+/* cameras */
+let cam = localStorage.cascadeCam && CAMS.includes(localStorage.cascadeCam) ? localStorage.cascadeCam : "kitchen";
+let manualAt = 0, camFails = 0, lastUrl = null;
+const thumbs = $("#thumbs"), dotsCam = $("#dotsCam");
+function buildCams(list) { CAMS = list.slice(); thumbs.innerHTML = ""; dotsCam.innerHTML = "";
+CAMS.forEach(c => {
+  const b = document.createElement("button"); b.className = "thumb"; b.dataset.cam = c;
+  b.innerHTML = `<img alt=""><span data-cl="${c}">${c}</span>`; b.onclick = () => setCam(c, true); thumbs.appendChild(b);
+  dotsCam.appendChild(document.createElement("i"));
+});
+if (!CAMS.includes(cam)) cam = CAMS[0];
+thumbs.querySelectorAll(".thumb").forEach(t => t.classList.toggle("on", t.dataset.cam === cam));
+dotsCam.querySelectorAll("i").forEach((d, i) => d.classList.toggle("on", CAMS[i] === cam)); }
+buildCams(CAMS);
+function updDuckSel() { const show = isSim() && (cam === "duck" || cam === "chase");
+  $("#duckSel").classList.toggle("show", show);
+  $("#duckSel").querySelectorAll("button").forEach(b => b.classList.toggle("on", +b.dataset.d === DUCK)); }
+function buildDucks() { const d = $("#duckSel"); d.innerHTML = '<span class="dl">Pick a duck</span>';
+  DUCK_COLORS.forEach((c, i) => { const b = document.createElement("button"); b.textContent = i + 1; b.dataset.d = i + 1;
+    b.style.background = c; b.style.color = (i === 10 || i === 7 || i === 6) ? "#fff" : "#111";
+    b.onclick = () => pickDuck(i + 1); d.appendChild(b); }); updDuckSel(); }
+function pickDuck(n) { DUCK = n; localStorage.cascadeLabDuck = n; buzz(8);
+  api("/api/sim", { method: "POST", body: JSON.stringify({ action: "select", duck: n }) }).catch(() => {});
+  if (cam !== "duck" && cam !== "chase") setCam("duck", true); else { updDuckSel(); loadMain(true); loadThumbs(); } }
+function simStream(force) {
+  const u = `/api/stream/${SCN}/${cam}.mjpg?duck=${DUCK}`;
+  if (!force && (Date.now() < simRetryAt || (simUrl === u && Date.now() - simAt < 240000))) return;
+  simUrl = u; simAt = Date.now(); const img = $("#camImg");
+  if (lastUrl) { URL.revokeObjectURL(lastUrl); lastUrl = null; }
+  img.onerror = () => { if (!isSim()) return; simUrl = ""; simRetryAt = Date.now() + 1500;
+    /* STREAM_FALLBACK: some networks / proxies break MJPEG; 3 failures within 15 s -> still frames for 15 s */
+    const now = Date.now(); streamErrs = streamErrs.filter(x => now - x < 15000); streamErrs.push(now);
+    if (streamErrs.length >= 3) { streamBrokenAt = now; streamErrs = []; img.onerror = img.onload = null; loadMain(true); }
+    else $("#stage").classList.add("isoff"); };
+  img.onload = () => { streamErrs = []; $("#stage").classList.remove("isoff"); };
+  img.src = u + "&k=" + Date.now(); }
+let streamErrs = [], streamBrokenAt = 0;
+const streamOk = () => Date.now() - streamBrokenAt > 15000;
+async function simAction(a) { buzz(10);
+  try { const r = await api("/api/sim", { method: "POST", body: JSON.stringify({ action: a, duck: DUCK }) });
+    toast(r.message || "OK"); if (a === "push" && cam !== "duck" && cam !== "chase") setCam("chase", true); refreshStatus(); }
+  catch (err) { toast(err.message || "Simulation offline"); } }
+function setCam(c, manual) {
+  if (ONLY && c !== ONLY) { if (manual) toast("Only the " + camLabel(ONLY) + " camera renders right now"); c = ONLY; }
+  cam = c; localStorage.cascadeCam = c; if (manual) { manualAt = Date.now(); buzz(8); }
+  $("#camName").textContent = camLabel(c);
+  thumbs.querySelectorAll(".thumb").forEach(t => t.classList.toggle("on", t.dataset.cam === c));
+  dotsCam.querySelectorAll("i").forEach((d, i) => d.classList.toggle("on", CAMS[i] === c));
+  updDuckSel(); loadMain(true);
+}
+const step = d => setCam(CAMS[(CAMS.indexOf(cam) + d + CAMS.length) % CAMS.length], true);
+$("#prevCam").onclick = () => step(-1); $("#nextCam").onclick = () => step(1);
+/* LOWDATA_ONECAM: video quality and the one-camera switch */
+const QUALS = { auto: "Auto", low: "Data saver", min: "Bad connection" }, QCHIP = { auto: "AUTO", low: "LOW", min: "MIN" };
+let quality = QUALS[localStorage.cascadeLabQuality] ? localStorage.cascadeLabQuality : "auto", ONLY = null;
+const lowData = () => quality !== "auto";
+function setQuality(q, announce) { quality = q; localStorage.cascadeLabQuality = q;
+  document.querySelectorAll("#qualSeg button").forEach(b => b.classList.toggle("on", b.dataset.q === q));
+  $("#qualChip").textContent = QCHIP[q]; document.body.classList.toggle("lowdata", lowData());
+  const im = $("#camImg"); im.onerror = im.onload = null; simUrl = "";
+  if (announce) toast("Video: " + QUALS[q]); loadMain(true); }
+function applyOnly(c) { c = c && CAMS.includes(c) ? c : null;
+  if (c !== ONLY) { ONLY = c; document.body.classList.toggle("onecam", !!c); if (c && cam !== c) setCam(c, false); }
+  renderOneCam(); }
+function renderOneCam() { const s = $("#oneCamSeg"); if (!s) return;
+  const opts = [["", "All"]].concat(CAMS.map(c => [c, camLabel(c)])), sig = JSON.stringify(opts) + (ONLY || "");
+  if (s.dataset.sig === sig) return; s.dataset.sig = sig; s.innerHTML = "";
+  opts.forEach(([v, l]) => { const b = document.createElement("button"); b.textContent = l; b.classList.toggle("on", (ONLY || "") === v);
+    b.onclick = async () => { buzz(10); try { const r = await api("/api/admin/only_cam", { method: "POST", body: JSON.stringify({ cam: v }) });
+      toast(r.message); applyOnly(r.only_cam); } catch (err) { toast(err.message); } }; s.appendChild(b); }); }
+let mainBusy = 0, thumbsBusy = false, mainSeq = 0, mainShown = 0;
+async function loadMain(force) {
+  if (!SPEC) return;                     /* scenario not loaded yet: its cameras are unknown */
+  if (isSim() && !lowData() && streamOk()) return simStream(force);
+  if (isSim() && simUrl) { const im = $("#camImg"); im.onerror = im.onload = null; simUrl = ""; }
+  /* still frames: up to 3 requests in flight for the duck cells (a slow tunnel adds ~0.7 s per round trip) */
+  if (mainBusy >= (isSim() && !lowData() ? 3 : 1) && !force) return; mainBusy++; const want = cam, seq = ++mainSeq;
+  try {
+    const r = await fetch(`/api/cam/${SCN}/${want}.jpg?t=${Date.now()}${lowData() ? "&q=" + quality : isSim() ? "&q=full" : ""}${camQ()}`, { headers: { "X-Client": clientId } });
+    if (r.status === 401) return location.replace("/");
+    if (!r.ok) throw 0;
+    const url = URL.createObjectURL(await r.blob());
+    if (want === cam && seq > mainShown) { mainShown = seq; const img = $("#camImg"); img.src = url; if (lastUrl) URL.revokeObjectURL(lastUrl); lastUrl = url; }
+    else URL.revokeObjectURL(url);
+    camFails = 0; $("#stage").classList.remove("isoff");
+  } catch { if (++camFails > 3) $("#stage").classList.add("isoff"); }
+  finally { mainBusy--; }
+}
+/* LOWDATA_ONECAM_2 */
+async function loadThumbs() { if (!SPEC || thumbsBusy || lowData() || ONLY) return; thumbsBusy = true;
+  try { await thumbsPass(); } finally { thumbsBusy = false; } }
+async function thumbsPass() {
+  for (const t of thumbs.querySelectorAll(".thumb")) { if (lowData() || ONLY) return;
+    try { const r = await fetch(`/api/cam/${SCN}/${t.dataset.cam}.jpg?t=${Date.now()}${camQ()}${isSim() ? "&q=thumb" : ""}`, { headers: { "X-Client": clientId } });
+      if (!r.ok) continue; const img = t.querySelector("img"); const old = img.src;
+      img.src = URL.createObjectURL(await r.blob()); if (old.startsWith("blob:")) URL.revokeObjectURL(old); } catch {}
+  }
+}
+(function camLoop() { if (!document.hidden) loadMain(false); setTimeout(camLoop, quality === "min" ? 1000 : quality === "low" ? 450 : 280); })();
+(function thumbLoop() { if (!document.hidden) loadThumbs(); setTimeout(thumbLoop, 2500); })();
+$("#qualChip").onclick = e => { e.stopPropagation(); const order = ["auto", "low", "min"];
+  setQuality(order[(order.indexOf(quality) + 1) % order.length], true); };
+document.querySelectorAll("#qualSeg button").forEach(b => b.onclick = () => setQuality(b.dataset.q, true));
+setQuality(quality, false);
+let sx = 0, sy = 0;
+$("#stage").addEventListener("touchstart", e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+$("#stage").addEventListener("touchend", e => { const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+  if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) step(dx < 0 ? 1 : -1); }, { passive: true });
+$("#fullBtn").onclick = () => { $("#stage").classList.toggle("full"); buzz(8); };
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "TEXTAREA") return;
+  if (e.key === "ArrowRight") step(1); if (e.key === "ArrowLeft") step(-1);
+  if (e.key === "Escape") $("#stage").classList.remove("full"); });
+
+/* stop / reset / menu */
+$("#stopBtn").onclick = async e => { e.stopPropagation(); buzz([40, 30, 40]);
+  try { const r = await api("/api/stop", { method: "POST" }); toast(r.message || "Robot stopped"); }
+  catch (err) { toast(err.message || "Stop failed"); } };
+const sheet = on => { $("#sheet").classList.toggle("on", on); $("#sheetBg").classList.toggle("on", on); };
+$("#menuBtn").onclick = () => sheet(true); $("#sheetBg").onclick = () => sheet(false); $("#closeSheet").onclick = () => sheet(false);
+$("#installBtn").onclick = () => { sheet(false); toast("iPhone: Share \u2192 Add to Home Screen \u00b7 Android: \u22EE \u2192 Install app"); };
+$("#resetBtn").onclick = async () => { sheet(false); toast("Resetting the kitchen…");
+  try { const r = await api("/api/reset", { method: "POST" }); toast(r.message); } catch (err) { toast(err.message); } };
+
+/* quick + builder */
+function renderQuick() { $("#quick").innerHTML = ""; QUICK.forEach(q => { const b = document.createElement("button"); b.className = "qa";
+  b.innerHTML = `<div class="em">${q.em}</div><b>${esc(q.title)}</b><small>${esc(q.sub)}</small>`;
+  b.onclick = () => q.order ? obOrder(q.order) : q.action ? simAction(q.action) : send(q.text); $("#quick").appendChild(b); }); }
+let selObj = null, selDst = null;
+function chip(parent, item, onClick) { const b = document.createElement("button"); b.className = "chip";
+  b.innerHTML = (item.sw ? `<span class="sw" style="background:${item.sw}"></span>` : `<span>${item.em}</span>`) + esc(item.label);
+  b.onclick = () => { onClick(item, b); buzz(6); }; parent.appendChild(b); return b; }
+function renderChips() { $("#objChips").innerHTML = ""; $("#dstChips").innerHTML = ""; selObj = selDst = null;
+OBJECTS.forEach(o => chip($("#objChips"), o, (it, b) => { selObj = it;
+  $("#objChips").querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c === b)); updatePreview(); }));
+DESTS.forEach(d => chip($("#dstChips"), d, (it, b) => { selDst = it;
+  $("#dstChips").querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c === b)); updatePreview(); }));
+updatePreview(); }
+function sentence() { return selObj && selDst ? selDst.tpl.replace("{o}", selObj.noun) : null; }
+function updatePreview() { const s = sentence(), p = $("#preview");
+  p.textContent = s || (selObj ? `${selObj.label} \u2192 where?` : "Your task appears here"); p.classList.toggle("ph", !s);
+  $("#buildSend").disabled = !s; }
+$("#buildSend").onclick = () => { const s = sentence(); if (s) send(s); };
+
+/* composer */
+const ta = $("#text"), ghost = $("#ghost");
+let exI = 0;
+function showGhost() { ghost.style.opacity = ta.value ? 0 : 1; }
+function rotateGhost() { if (ta.value) return;
+  ghost.style.opacity = 0; setTimeout(() => { ghost.innerHTML = `Try: <b>${esc(EXAMPLES[exI++ % EXAMPLES.length])}</b>`; showGhost(); }, 300); }
+setInterval(rotateGhost, 3600);
+ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+  $("#send").disabled = !ta.value.trim(); showGhost(); });
+ta.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#form").requestSubmit(); }
+  if (e.key === "Tab" && !ta.value) { e.preventDefault(); ta.value = EXAMPLES[(exI - 1 + EXAMPLES.length) % EXAMPLES.length];
+    ta.dispatchEvent(new Event("input")); } });
+ghost.addEventListener("click", () => ta.focus());
+function renderSugg() { $("#sugg").innerHTML = ""; EXAMPLES.slice(0, 5).forEach(x => { const b = document.createElement("button"); b.textContent = x;
+  b.onclick = () => { ta.value = x; ta.dispatchEvent(new Event("input")); ta.focus(); }; $("#sugg").appendChild(b); }); }
+function applyScenario(id) {
+  SPEC = SCNS.find(x => x.id === id) || SCNS[0]; if (!SPEC) return; SCN = SPEC.id; localStorage.cascadeLabScn = SCN;
+  document.body.classList.toggle("is-sim", isSim()); document.body.classList.toggle("has-hard", !!SPEC.hard_reset);
+  krSig = ""; krTick(); buildCams(isSim() ? SPEC.cams : BASE_CAMS); ONLY = null; document.body.classList.remove("onecam"); renderOneCam(); updDuckSel();
+  if (!isSim()) { const im = $("#camImg"); im.onerror = im.onload = null; simUrl = ""; }
+  $("#resetSub").textContent = isSim() ? (SPEC.reset_sub || "Scatter all 12 ducks across the yard again") : "Put every object back where it started";
+  $("#simAbout").textContent = SPEC.about || ""; $("#oneTapSub").textContent = isSim() ? "\u00b7 the ducks react live" : "\u00b7 the robot does it live";
+  OBJECTS = SPEC.objects; DESTS = SPEC.dests; QUICK = SPEC.quick; EXAMPLES = SPEC.examples; exI = 0;
+  document.documentElement.style.setProperty("--accent", SPEC.accent || "#f5a623");
+  $("#brandSub").textContent = `${SPEC.title} \u00b7 ${SPEC.subtitle}`;
+  $("#sheetTitle").textContent = `Cascade Lab \u00b7 ${SPEC.title}`;
+  $("#resetLabel").textContent = SPEC.id === "recycling" ? "Drop new waste" : `Reset the ${SPEC.title.toLowerCase()}`;
+  $("#scn").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.id === SCN));
+  document.querySelectorAll("[data-cl]").forEach(e => { e.textContent = camLabel(e.dataset.cl); });
+  $("#camName").textContent = camLabel(cam);
+  renderQuick(); renderOb(); renderChips(); renderSugg(); items = []; lastSig = ""; renderFeed();
+  loadMain(true); loadThumbs(); refreshStatus(); refreshFeed();
+}
+function renderScnBar() { const bar = $("#scn"); bar.innerHTML = "";
+  SCNS.forEach(x => { const b = document.createElement("button"); b.dataset.id = x.id;
+    b.innerHTML = `<span class="ic">${x.icon}</span><span><b>${esc(x.title)}</b><small>${esc(x.subtitle)}</small></span><i class="hd ${esc(x.health)}"></i>`;
+    b.onclick = () => { if (x.id !== SCN) { buzz(10); applyScenario(x.id); } }; bar.appendChild(b); }); }
+async function loadScenarios() { try { const r = await api("/api/scenarios"); SCNS = r.items;
+  renderScnBar(); applyScenario(SCNS.some(x => x.id === SCN) ? SCN : r.default); } catch (e) { setTimeout(loadScenarios, 3000); } }
+setInterval(async () => { try { const r = await api("/api/scenarios"); r.items.forEach(x => {
+  const d = $(`#scn button[data-id="${x.id}"] .hd`); if (d) d.className = "hd " + x.health; }); } catch {} }, 10000);
+$("#form").addEventListener("submit", e => { e.preventDefault(); const t = ta.value.trim(); if (t) send(t); });
+
+let sending = false;
+async function send(text) {
+  if (sending) return; sending = true; buzz(10);
+  try { await api("/api/chat", { method: "POST", body: JSON.stringify({ text }) });
+    ta.value = ""; ta.dispatchEvent(new Event("input")); ta.blur(); setTab("mine"); toast("Sent to the robot");
+    refreshFeed(); refreshStatus();
+    if (window.innerWidth < 960) $("#stage").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (err) { toast(err.message || "Could not send"); }
+  finally { sending = false; }
+}
+
+/* ORDERBOX */
+const OB_EX = ["Regroup in the square", "Two racers to the west ramp start line", "Ready... go!",
+  "Follow duck 5 around the cones", "Left group take the west ramp, right group the north ramp", "Scatter!", "Stop!",
+  "Stress test: give duck 3 a light push", "Everyone, gather in the centre circle",
+  "Walk around the circle, clockwise", "Form a triangle", "Make a square"];
+/* KEYNOTE_TAB: per-scenario order examples, one-tap orders, agent feed */
+const OBK = { order: "Order", perception: "Perception tool", tool: "Action tool", reply: "Nemotron", check: "Camera check" };
+let obFeedSig = "";
+function renderOb() { const ex = $("#obEx"); if (!ex) return; ex.innerHTML = "";
+  ((SPEC && SPEC.orders) || OB_EX).forEach(t => { const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = t;
+    b.onclick = () => { $("#obText").value = t; $("#obText").focus(); }; ex.appendChild(b); });
+  const hint = $("#obBrain"); if (hint) hint.textContent = (SPEC && SPEC.order_hint) || "\u00b7 NVIDIA Nemotron 3.5 Bolt turns it into a tool call";
+  obFeedSig = ""; $("#obFeed").innerHTML = ""; $("#obOut").textContent = ""; obFeedTick(); }
+function obOrder(t) { $("#obText").value = t; $("#obForm").requestSubmit(); }
+async function obFeedTick() { if (!SPEC || !SPEC.agent_feed || document.hidden) return; const want = SCN;
+  try { const r = await api("/api/sim/info"); if (want !== SCN) return; const ag = r.agent || {}; const fd = ag.feed || [];
+    const sig = fd.map(x => x.id).join(",") + (ag.busy ? "b" : ""); if (sig === obFeedSig) return; obFeedSig = sig;
+    $("#obFeed").innerHTML = (ag.busy ? '<div class="busy">Nemotron is working on an order...</div>' : "") +
+      fd.slice(-6).reverse().map(x => `<div class="k-${esc(x.kind)}"><b>${esc(OBK[x.kind] || x.kind)}</b><span>${esc(x.wall)}</span><br>${esc(x.text)}</div>`).join("");
+  } catch {} }
+setInterval(obFeedTick, 1500);
+(function () { if (!$("#obEx")) return;
+  $("#obForm").onsubmit = async e => { e.preventDefault(); const t = $("#obText").value.trim(); if (!t) return;
+    const btn = $("#obSend"); btn.disabled = true; $("#obOut").textContent = "Asking the agent..."; buzz(10);
+    try { const r = await api("/api/sim", { method: "POST", body: JSON.stringify({ action: "order", text: t, duck: DUCK }) });
+      $("#obOut").textContent = r.tool_call ? ("Tool call: " + r.tool_call + "\n" + (r.navigator || "")) : (r.message || "No tool call");
+      if (r.tool_call) $("#obText").value = ""; refreshStatus(); }
+    catch (err) { $("#obOut").textContent = err.message || "Simulation offline"; }
+    finally { btn.disabled = false; } }; })();
+
+/* HARD_RESET: soft / hard reset buttons and the health line */
+let krSig = "", hardArmed = 0, krWasResetting = false;
+$("#softBtn").onclick = async () => { buzz([20, 30, 20]); const b = $("#softBtn"); b.disabled = true;
+  try { const r = await api("/api/sim", { method: "POST", body: JSON.stringify({ action: "reset", duck: DUCK }) });
+    toast(r.message || "Soft reset done"); $("#obOut").textContent = ""; refreshStatus(); obFeedSig = ""; obFeedTick(); }
+  catch (err) { toast((err.message || "Soft reset failed") + " \u00b7 try Hard reset"); }
+  finally { setTimeout(() => { b.disabled = false; }, 1500); } };
+function disarmHard() { hardArmed = 0; $("#hardBtn").classList.remove("armed"); $("#hardLabel").textContent = "Hard reset";
+  $("#hardSub").textContent = "Restarts the simulation, the cameras and the AI if it is stuck. About 2 min."; }
+async function hardReset(nemo) {
+  buzz([60, 40, 60]); disarmHard(); $("#hardBtn").disabled = true; $("#softBtn").disabled = true;
+  try { const r = await api("/api/hard_reset", { method: "POST", body: JSON.stringify({ nemotron: !!nemo }) }); toast(r.message); }
+  catch (err) { toast(err.message || "Hard reset failed to start"); }
+  krSig = ""; setTimeout(krTick, 1200); }
+$("#hardBtn").onclick = () => { const dt = Date.now() - hardArmed;
+  if (dt < 600) return;                         /* a fast double tap is not a confirmation */
+  if (dt < 8000) return hardReset(false);
+  hardArmed = Date.now(); buzz(15); $("#hardBtn").classList.add("armed"); $("#hardLabel").textContent = "Tap again to confirm";
+  $("#hardSub").textContent = "Everything restarts: the video goes dark for about 2 minutes.";
+  setTimeout(() => { if (hardArmed && Date.now() - hardArmed >= 7900) disarmHard(); }, 8100); };
+$("#hardNemoRow").onclick = () => { sheet(false); if (confirm("Hard reset including Nemotron? About 6 minutes.")) hardReset(true); };
+const krDot = (label, p, txt) => `<span class="${p.ok === true ? "ok" : p.ok === false ? "bad" : ""}" title="${esc(p.detail || "")}"><i></i>${esc(label)}${txt ? " \u00b7 " + esc(txt) : ""}</span>`;
+async function krTick() { if (!SPEC || !SPEC.hard_reset || document.hidden) return; const want = SCN;
+  let h; try { h = await api("/api/health_full"); } catch { return; } if (want !== SCN) return;
+  const s = h.sim || {}, c = h.cameras || {}, n = h.nemotron || {};
+  const simTxt = s.up != null ? `${s.up}/12 up \u00b7 ${s.rtf}x` : (s.ok === false ? "down" : "");
+  const camTxt = c.ok === false ? "down" : c.render_ms != null ? `${Math.round(c.render_ms)} ms/frame` : "";
+  const nemoTxt = n.ok === false ? "not answering" : n.ok ? "ready" : "";
+  const html = krDot("Simulation", s, simTxt) + krDot("Cameras", c, camTxt) + krDot("Nemotron", n, nemoTxt);
+  if (html !== krSig) { $("#krHealth").innerHTML = html; krSig = html; }
+  const r = h.reset, prog = $("#krProg"), running = !!h.resetting;
+  if (running || (r && r.done && Date.now() / 1000 - r.updated < 25)) {
+    prog.classList.add("on"); prog.classList.toggle("good", !!(r && r.done && r.ok));
+    const title = running ? "Hard reset in progress\u2026 " + (r ? r.elapsed_s + " s" : "") : (r.ok ? "\u2713 Hard reset done" : "\u26A0 Hard reset finished with problems");
+    prog.innerHTML = `<b>${esc(title)}</b>${esc(r ? r.message : "Starting\u2026")}` +
+      (r && r.steps && r.steps.length ? "<br>" + r.steps.map(x => "\u2713 " + esc(x)).join("<br>") : "");
+  } else prog.classList.remove("on");
+  $("#hardBtn").disabled = running; $("#softBtn").disabled = running;
+  if (krWasResetting && !running) { simUrl = ""; loadMain(true); loadThumbs(); refreshStatus(); toast(r && r.ok ? "Hard reset done: ready for orders" : "Hard reset finished: check the lights"); }
+  krWasResetting = running; }
+setInterval(krTick, 3000);
+
+/* status + feed */
+let tab = "mine", items = [], status = null;
+function setTab(t) { tab = t; document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t)); renderFeed(); }
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+const ago = s => s < 60 ? `${Math.round(s)}s` : `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
+let lastCurrent = null, offlineCount = 0;
+let role = "guest", reserved = false;
+async function refreshStatus() {
+  try { status = await api("/api/status"); offlineCount = 0; } catch { if (++offlineCount > 2) { setPill("off", "Offline"); } return; }
+  applyRole(status.role, status.exclusive); applyOnly(status.only_cam);
+  const cur = status.current, now = $("#now"), locked = reserved && role !== "admin";
+  if (cur) {
+    setPill("busy", "Working");
+    now.classList.add("busy"); $("#orb").textContent = "\u2699\uFE0E";
+    $("#nowTitle").textContent = cur.mine ? "Working on your request" : (cur.by_admin ? "Working on the operator's request" : "Working on someone's request");
+    $("#nowSub").textContent = "\u201C" + cur.text + "\u201D \u00B7 " + ago(status.now - cur.started) + (status.queue ? " \u00B7 " + status.queue + " waiting" : "");
+    if (lastCurrent !== cur.id && cur.mine && Date.now() - manualAt > 15000 && cam !== "worktop") setCam("worktop", false);
+  } else {
+    if (locked) setPill("busy", "Reserved"); else setPill("", reserved ? "Reserved" : "Ready");
+    now.classList.remove("busy"); $("#orb").textContent = "\u2713";
+    $("#nowTitle").textContent = status.sim_title || (locked ? "Live demo in progress" : "Ready for you");
+    $("#nowSub").textContent = status.sim_sub ? status.sim_sub : status.queue ? status.queue + " waiting" : (locked ? "Watch the cameras; requests reopen after the demo" : "Tap a card or type what the robot should do");
+  }
+  lastCurrent = cur ? cur.id : null;
+}
+function applyRole(r, ex) {
+  role = r; reserved = !!ex;
+  document.body.classList.toggle("is-admin", r === "admin");
+  document.body.classList.toggle("is-reserved", reserved);
+  $("#exclusiveSwitch").classList.toggle("on", reserved);
+  $("#reservedBanner").textContent = r === "admin"
+    ? "\uD83D\uDD12 Reserved for you \u2014 only your requests run. Turn it off in the menu."
+    : "\uD83D\uDD12 The robot is reserved for a live demo. You can keep watching the cameras.";
+  const blocked = reserved && r !== "admin";
+  ta.disabled = blocked; $("#send").disabled = blocked || !ta.value.trim();
+  ghost.style.visibility = blocked ? "hidden" : "visible";
+  ta.placeholder = blocked ? "Reserved for a live demo" : "";
+}
+function setPill(cls, label) { const p = $("#pill"); p.className = "pill " + cls; p.querySelector("span").textContent = label; }
+let lastSig = "";
+async function refreshFeed() { try { items = (await api("/api/feed")).items; } catch { return; } renderFeed(); }
+function renderFeed() {
+  const list = (tab === "mine" ? items.filter(i => i.mine) : items).slice().reverse();
+  const sig = tab + role + JSON.stringify(list.map(i => [i.id, i.status, i.position, i.can_cancel, i.status === "running" ? Math.floor(Date.now() / 5000) : 0]));
+  if (sig === lastSig) return; lastSig = sig;
+  const chat = $("#chat"), atBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 40;
+  if (!list.length) { chat.innerHTML = `<div class="empty">${tab === "mine" ? "Nothing yet. Tap a card above or type below \u2014<br>the robot answers here and you watch it move live." : "No requests yet."}</div>`; return; }
+  chat.innerHTML = list.map(i => {
+    const who = i.mine ? "You" : (i.by_admin ? "Operator" : "Guest");
+    let bot;
+    if (i.status === "queued") bot = `<div class="msg bot"><span class="typing"><i></i><i></i><i></i></span>&nbsp; Waiting in line${i.position ? " \u00B7 #" + i.position : ""}</div>`;
+    else if (i.status === "running") bot = `<div class="msg bot"><span class="typing"><i></i><i></i><i></i></span>&nbsp; Thinking and moving\u2026</div>`;
+    else bot = `<div class="msg bot ${i.status === "error" ? "err" : ""} ${i.status === "cancelled" ? "cancelled" : ""}">${esc(i.reply)}</div>
+      <div class="meta">${(i.tools || []).map(t => `<span class="tag">${esc(t.replace(/_/g, " "))}</span>`).join("")}${i.secs ? `<span>${i.secs}s</span>` : ""}</div>`;
+    const cancel = i.can_cancel ? `<button class="cancel" data-cancel="${i.id}">${i.status === "running" ? "Stop &amp; cancel" : "Cancel"}</button>` : "";
+    return `<div class="turn"><div class="meta r">${who}</div><div class="msg user ${i.mine ? "" : "other"}">${esc(i.text)}</div>${bot}${cancel}</div>`;
+  }).join("");
+  if (atBottom || window.innerWidth < 960) chat.scrollTop = chat.scrollHeight;
+}
+(function statusLoop() { if (!document.hidden) refreshStatus(); setTimeout(statusLoop, 1500); })();
+(function feedLoop() { if (!document.hidden) refreshFeed(); setTimeout(feedLoop, 2200); })();
+$("#chat").addEventListener("click", async e => {
+  const b = e.target.closest("[data-cancel]"); if (!b) return; b.disabled = true; buzz(15);
+  try { const r = await api("/api/cancel", { method: "POST", body: JSON.stringify({ id: b.dataset.cancel }) }); toast(r.message); }
+  catch (err) { toast(err.message); }
+  lastSig = ""; refreshFeed(); refreshStatus(); });
+const MOON = '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>';
+const SUN = '<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.2M12 19.8V22M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2 12h2.2M19.8 12H22M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/>';
+function setTheme(th) {
+  document.documentElement.dataset.theme = th; localStorage.cascadeThemeV2 = th;
+  $("#themeSwitch").classList.toggle("on", th === "light");
+  document.querySelector('meta[name="theme-color"]').content = th === "light" ? "#f4f6f1" : "#07090a";
+  $("#themeIcon").innerHTML = th === "light" ? MOON : SUN;
+}
+const flipTheme = () => { setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"); buzz(8); };
+$("#themeBtn").onclick = flipTheme; $("#themeRow").onclick = flipTheme;
+setTheme(document.documentElement.dataset.theme || "light");
+$("#exclusiveRow").onclick = async () => {
+  const on = !reserved; buzz(20);
+  try { const r = await api("/api/admin/exclusive", { method: "POST", body: JSON.stringify({ on }) }); toast(r.message); applyRole(role, r.exclusive); }
+  catch (err) { toast(err.message); }
+  lastSig = ""; refreshStatus(); refreshFeed(); };
+$("#clearRow").onclick = async () => {
+  try { const r = await api("/api/admin/clear", { method: "POST" }); toast(r.message); } catch (err) { toast(err.message); }
+  lastSig = ""; refreshFeed(); };
+$("#logoutBtn").onclick = async () => { try { await fetch("/api/logout", { method: "POST" }); } catch {} location.replace("/"); };
+api("/api/me").then(m => applyRole(m.role, m.exclusive)).catch(() => {});
+setCam(cam, false); updatePreview();
+buildDucks(); loadScenarios(); rotateGhost();
+</script>
+</body>
+</html>

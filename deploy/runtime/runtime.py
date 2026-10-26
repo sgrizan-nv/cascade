@@ -127,6 +127,16 @@ def access_mode():
     return mode
 
 
+LAB_CONTACT_CHANNELS = {'physx': 'physx_gpu_contact_tensor', 'newton': 'newton_mjwarp_contact_force'}
+
+
+def lab_engine():
+    engine = os.environ.get('PAAI_LAB_ENGINE', 'physx')
+    if engine not in LAB_CONTACT_CHANNELS:
+        raise ValueError('PAAI_LAB_ENGINE must be physx or newton')
+    return engine
+
+
 def model_identity():
     if MODEL_ID != REQUIRED_MODEL_ID:
         raise ValueError('The production model must be Qwen/Qwen3.8-27B')
@@ -228,7 +238,9 @@ def validate_urls(value):
         private_http = (parsed.scheme == 'http' and access_mode() == 'tailscale'
                         and parsed.hostname == private_bind(os.environ.get('PAAI_HTTP_BIND', '127.0.0.1'))
                         and not ipaddress.ip_address(parsed.hostname).is_loopback)
-        if (not (parsed.scheme == 'https' or private_http) or not parsed.hostname or parsed.username or parsed.password
+        lab_loopback = (parsed.scheme == 'http' and 'PAAI_LAB_BIND' in os.environ
+                        and parsed.hostname == private_bind(os.environ.get('PAAI_HTTP_BIND', '127.0.0.1')))
+        if (not (parsed.scheme == 'https' or private_http or lab_loopback) or not parsed.hostname or parsed.username or parsed.password
                 or parsed.query or parsed.fragment or any(ord(c) < 33 for c in url)):
             raise ValueError('Visitor URLs must use HTTPS or the exact configured Tailscale address')
         urls[key] = url.rstrip('/') + '/'
@@ -282,7 +294,13 @@ def runtime_environment():
         OMNI_KIT_ACCEPT_EULA='YES', ACCEPT_EULA='Y',
         ISAACSIM_PYTHON_EXE=str(configured_path('PAAI_ISAAC_PYTHON', '/isaac-sim/python.sh')),
         CASCADE_PHYSICS_DEVICE='cuda:0', CASCADE_REQUIRE_CUDA='1', CASCADE_DEVICE='cuda:0',
-        CASCADE_BRIDGE_BIND='127.0.0.1', CASCADE_PROOF_CAMERA='1',
+        CASCADE_BRIDGE_BIND=os.environ.get('PAAI_LAB_BIND', '127.0.0.1'),
+        PAAI_LAB_BIND=os.environ.get('PAAI_LAB_BIND', '127.0.0.1'),
+        PAAI_LAB_INSTRUCTIONS=os.environ.get('PAAI_LAB_INSTRUCTIONS', ''),
+        PAAI_LAB_ROBOT_NAME=os.environ.get('PAAI_LAB_ROBOT_NAME', 'Kitchen robot'),
+        PAAI_LAB_SCENE_CONFIG=os.environ.get('PAAI_LAB_SCENE_CONFIG', 'demo/scene/kitchen_config.json'), CASCADE_PROOF_CAMERA='1',
+        PAAI_LAB_ENGINE=lab_engine(),
+        CASCADE_SCENE_CONFIG=os.environ.get('PAAI_LAB_SCENE_CONFIG', ''),
         CASCADE_ISAAC_WIDTH='960', CASCADE_ISAAC_HEIGHT='540', CASCADE_ISAAC_CAM_EVERY='4',
         CASCADE_ISAAC_DT=str(1 / 120), CASCADE_VIEW='0', CASCADE_MJ_VIEW='0',
         CASCADE_BELIEFS='0', CASCADE_OCCUPANCY='0', CASCADE_STREAM='0',
@@ -303,7 +321,8 @@ def runtime_environment():
         CASCADE_GPU_MODEL=str(configured_path('PAAI_MODEL_FILE', model_dir / 'Qwen3.8-27B-Q8_0.gguf')),
         CASCADE_GPU_MMPROJ=str(configured_path('PAAI_MMPROJ_FILE', model_dir / 'mmproj-Qwen3.8-27B-BF16.gguf')),
         CASCADE_GPU_MODEL_ID=model_identity())
-    for name in ('CASCADE_ISAAC_WIDTH', 'CASCADE_ISAAC_HEIGHT', 'CASCADE_ISAAC_CAM_EVERY', 'CASCADE_ISAAC_DT'):
+    for name in ('CASCADE_ISAAC_WIDTH', 'CASCADE_ISAAC_HEIGHT', 'CASCADE_ISAAC_CAM_EVERY', 'CASCADE_ISAAC_DT',
+                 'ISAACSIM_PATH'):
         if name in os.environ:
             env[name] = os.environ[name]
     if os.environ.get('PAAI_CAMERA_VIDEO_CONFIG'):
@@ -405,7 +424,7 @@ def setup(urls_file=None, sso_confirmed=False, sso_issuer=None, sso_audience=Non
                                 # Leave room for robot tools and new camera images.
                                 'compaction': {'keepRecentTokens': 2048}},
                    'entries': {'main': {'name': 'main', 'workspace': str(workspace),
-                     'agentDir': str(profile / 'agents/main/agent'), 'identity': {'name': 'Kitchen robot'},
+                     'agentDir': str(profile / 'agents/main/agent'), 'identity': {'name': os.environ.get('PAAI_LAB_ROBOT_NAME', 'Kitchen robot')},
                      # The native image estimate can clamp replies to one token.
                      # Keep a bounded reply budget; the server checks its real context.
                      'model': 'cascade-gpu/' + MODEL_ID,
@@ -415,7 +434,9 @@ def setup(urls_file=None, sso_confirmed=False, sso_issuer=None, sso_audience=Non
         # active tool leases alive and recreates the runtime on the next call.
         'mcp': {'sessionIdleTtlMs': 60000, 'servers': {'cascade': {'command': env['PAAI_APP_PYTHON'],
             'args': ['-m', 'cascade.apps.mcp_server', '--launch-owner', owner['owner'], '--launch-state-dir', str(launch)],
-            'cwd': env['PAAI_PERCEPTION_DIR'], 'env': mcp_env, 'connectionTimeoutMs': 120000, 'requestTimeoutMs': 300000}}}}
+            'cwd': env['PAAI_PERCEPTION_DIR'], 'env': mcp_env, 'connectionTimeoutMs': 120000,
+            # Lab cells share a GPU: a persistent pick can exceed 300 s, and a host cancel latches the e-stop.
+            'requestTimeoutMs': int(os.environ.get('PAAI_MCP_REQUEST_TIMEOUT_MS', '300000'))}}}}
     if urls.get('tutorial') and urlsplit(urls['tutorial']).scheme == 'https':
         config['gateway']['publicOrigin'] = urlsplit(urls['tutorial']).scheme + '://' + urlsplit(urls['tutorial']).netloc
     atomic(profile / 'openclaw.json', config)
@@ -478,13 +499,13 @@ def simulator_probe():
         state = client.request({'op': 'state'})
     finally:
         client.close()
-    scene = ROOT / 'demo/scene/kitchen_config.json'
+    scene = ROOT / os.environ.get('PAAI_LAB_SCENE_CONFIG', 'demo/scene/kitchen_config.json')
     spec = importlib.util.spec_from_file_location('runtime_kitchen_identity', ROOT / 'demo/scene_identity.py')
     identity_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(identity_module)
     expected_identity = identity_module.scene_identity(scene)
     attestation = pong.get('gpu_attestation', {})
-    valid = (pong.get('ok') is True and pong.get('engine') == 'physx' and
+    valid = (pong.get('ok') is True and pong.get('engine') == lab_engine() and
         pong.get('scene_config') == str(scene) and
         all(pong.get(key) == expected_identity[key] for key in
             ('scene_name', 'scene_config_sha256', 'scene_assets_sha256', 'scene_content_sha256')) and
@@ -492,7 +513,7 @@ def simulator_probe():
         pong.get('physics_gpu') is True and attestation.get('cpu_fallback_allowed') is False and
         attestation.get('device') == 'cuda:0' and state.get('q') and all(math.isfinite(x) for x in state['q']))
     if not valid:
-        raise ValueError('Isaac did not prove the expected scene, live joints, and GPU PhysX')
+        raise ValueError(f'Isaac did not prove the expected scene, live joints, and GPU {lab_engine()}')
     return {'ready': True, 'gpu_attestation': attestation, 'physics_dt_s': pong['physics_dt_s'],
             'scene_sha256': pong['scene_config_sha256'], 'scene_content_sha256': pong['scene_content_sha256'],
             'scene_name': pong['scene_name'], 'joints_finite': True}
@@ -516,7 +537,7 @@ def smoke():
             forces = [*snapshot.get('net_force_n', []),
                       *(value for row in snapshot.get('jaw_forces_n', []) for value in row)]
             counts = snapshot.get('jaw_contact_counts', [])
-            if (snapshot.get('channel') != 'physx_gpu_contact_tensor' or snapshot.get('device') != 'cuda:0'
+            if (snapshot.get('channel') != LAB_CONTACT_CHANNELS[lab_engine()] or snapshot.get('device') != 'cuda:0'
                     or len(forces) != 9 or not all(isinstance(x, (float, int)) and math.isfinite(x) for x in forces)
                     or len(counts) != 2 or not all(isinstance(x, int) and x >= 0 for x in counts)
                     or type(snapshot.get('physics_step')) is not int):
@@ -945,7 +966,7 @@ def worker(role):
         signal.signal(signal.SIGTERM, lambda *_: stopped.set())
         signal.signal(signal.SIGINT, lambda *_: stopped.set())
         rig = RecoveringViewRig(stop_event=stopped)
-        server = KitchenStreamServer(rig, state_fn=rig.state, host='127.0.0.1', port=8091, fps=8, quality=90)
+        server = KitchenStreamServer(rig, state_fn=rig.state, host=os.environ.get('PAAI_LAB_BIND', '127.0.0.1'), port=8091, fps=8, quality=90)
         try:
             server.start()
             rig.open()
@@ -959,8 +980,8 @@ def worker(role):
         return asyncio.run(run_web(ROOT, deployment))
     if role == 'isaac':
         command = [deployment['environment']['ISAACSIM_PYTHON_EXE'], str(ROOT / 'scripts/isaac_bridge.py'),
-            '--port', '8611', '--engine', 'physx', '--usd', str(ROOT / 'assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda'),
-            '--scene-config', str(ROOT / 'demo/scene/kitchen_config.json')]
+            '--port', '8611', '--engine', lab_engine(), '--usd', str(ROOT / 'assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda'),
+            '--scene-config', str(ROOT / os.environ.get('PAAI_LAB_SCENE_CONFIG', 'demo/scene/kitchen_config.json'))]
     elif role == 'gateway':
         command = [shutil.which('node', path=deployment['environment']['PATH']),
                    deployment['environment']['PAAI_OPENCLAW_CLI'],

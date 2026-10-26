@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07090a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Cascade Lab">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <title>Cascade Lab · Experimental robot cells</title>
+  <script>document.documentElement.dataset.theme = localStorage.cascadeThemeV2 || "light";</script>
+  <style>
+    :root[data-theme="light"] body { background: #f4f6f1; color: #11160f; }
+    :root[data-theme="light"] .backdrop { background: radial-gradient(ellipse 80% 55% at 50% -10%, rgba(118,185,0,0.22) 0%, transparent 60%), #f4f6f1; }
+    :root[data-theme="light"] .grid { opacity: .5; background-image: linear-gradient(rgba(0,0,0,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.05) 1px, transparent 1px); }
+    :root[data-theme="light"] input { background: #fff; color: #11160f; }
+    :root[data-theme="light"] h1 { background: linear-gradient(135deg, #4f8a00, #76B900); -webkit-background-clip: text; background-clip: text; }
+    :root[data-theme="light"] .sub { color: #5a6457; }
+    :root[data-theme="light"] .dot { background: #d6dccf; }
+    :root[data-theme="light"] .hint, :root[data-theme="light"] .foot { color: #8a9387; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: #07090a; color: #eef2ea; min-height: 100dvh;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    .backdrop { position: fixed; inset: 0; z-index: -1; background:
+      radial-gradient(ellipse 80% 55% at 50% -10%, rgba(118,185,0,0.24) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 40% at 95% 105%, rgba(163,230,53,0.10) 0%, transparent 60%),
+      #07090a; }
+    .grid { position: fixed; inset: 0; z-index: -1; opacity: .35;
+      background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 75%); }
+    .box { text-align: center; padding: 2rem 1.5rem; width: min(420px, 100vw); animation: up .7s ease-out both; }
+    .mark { width: 72px; height: 72px; margin: 0 auto; filter: drop-shadow(0 10px 30px rgba(118,185,0,.35)); }
+    h1 { font-size: 2.6rem; font-weight: 900; letter-spacing: .16em; margin: 1.1rem 0 .35rem;
+      background: linear-gradient(135deg, #76B900, #c6f36b); -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent; background-clip: text; }
+    .sub { font-size: .9rem; color: #8b948a; margin-bottom: 2.2rem; }
+    .field { position: relative; }
+    input { width: 100%; background: #10140f; border: 2px solid rgba(118,185,0,.25); border-radius: 16px;
+      padding: 1rem 1.4rem; font-size: 1.2rem; font-family: inherit; color: #eef2ea; text-align: center;
+      letter-spacing: .14em; outline: none; -webkit-text-security: disc; transition: border-color .2s, box-shadow .2s; }
+    input:focus { border-color: #76B900; box-shadow: 0 0 0 5px rgba(118,185,0,.14); }
+    input.error { border-color: #ff4d4f; box-shadow: 0 0 0 5px rgba(255,77,79,.14); animation: shake .4s; }
+    input.ok { border-color: #a3e635; }
+    .dots { display: flex; gap: 8px; justify-content: center; margin-top: 1.3rem; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #1f261c; transition: all .15s; }
+    .dot.on { background: #76B900; transform: scale(1.2); box-shadow: 0 0 10px rgba(118,185,0,.6); }
+    .go { margin-top: 1.6rem; width: 100%; padding: .95rem; border: 0; border-radius: 16px; font: 700 1rem inherit;
+      font-family: inherit; color: #07090a; background: linear-gradient(135deg, #76B900, #a3e635); cursor: pointer;
+      box-shadow: 0 10px 30px rgba(118,185,0,.25); transition: transform .1s; }
+    .go:active { transform: scale(.98); }
+    .hint { margin-top: 1.1rem; font-size: .78rem; color: #5d665b; }
+    .foot { position: fixed; bottom: max(14px, env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center;
+      font-size: .7rem; color: #4a5248; letter-spacing: .08em; }
+    @keyframes up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+    @keyframes shake { 0%,100% { transform: none; } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); }
+      60% { transform: translateX(-5px); } 80% { transform: translateX(5px); } }
+    .box.leaving { animation: out .45s ease-in forwards; }
+    @keyframes out { to { opacity: 0; transform: scale(.96) translateY(-10px); } }
+  </style>
+</head>
+<body>
+  <div class="backdrop"></div><div class="grid"></div>
+  <form class="box" id="box" autocomplete="off">
+    <svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <rect width="64" height="64" rx="16" fill="#76B900"/>
+      <path d="M18 46h28" stroke="#07090a" stroke-width="4" stroke-linecap="round"/>
+      <path d="M24 46V34l10-10 8 8" stroke="#07090a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="24" cy="34" r="3.2" fill="#07090a"/><circle cx="34" cy="24" r="3.2" fill="#07090a"/>
+      <path d="M42 32l4-4m-4 4l4 4" stroke="#07090a" stroke-width="3.4" stroke-linecap="round"/>
+    </svg>
+    <h1>CASCADE <span style="font-size:.42em;letter-spacing:.14em;padding:3px 9px;border-radius:9px;background:#f5a623;color:#111;vertical-align:.55em">LAB</span></h1>
+    <p class="sub">Experimental cells · workshop and recycling robots</p>
+    <div class="field">
+      <input id="pw" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off"
+             spellcheck="false" placeholder="Password" aria-label="Password" autofocus>
+    </div>
+    <div class="dots" id="dots"></div>
+    <button class="go" type="submit">Enter</button>
+    <p class="hint" id="hint">Hint: it's the name of the project</p>
+  </form>
+  <div class="foot">NVIDIA ISAAC SIM · OPENCLAW · QWEN</div>
+  <script>
+    const input = document.getElementById("pw"), dots = document.getElementById("dots"), hint = document.getElementById("hint");
+    const HINT = hint.textContent, N = 10;
+    for (let i = 0; i < N; i++) { const d = document.createElement("span"); d.className = "dot"; dots.appendChild(d); }
+    const dotEls = dots.querySelectorAll(".dot");
+    const paint = n => dotEls.forEach((d, i) => d.classList.toggle("on", i < Math.min(n, N)));
+    let busy = false, last = null, timer = null;
+    function fail(msg) {
+      input.classList.add("error"); hint.textContent = msg; hint.style.color = "#ff4d4f";
+      if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+      setTimeout(() => { input.classList.remove("error"); input.value = ""; paint(0); hint.textContent = HINT;
+        hint.style.color = ""; busy = false; last = null; }, 900);
+    }
+    async function go(pw) {
+      pw = (pw || "").trim(); if (busy || !pw) return; busy = true; last = pw;
+      try {
+        const r = await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pw }) });
+        if (r.ok) { input.classList.add("ok"); hint.textContent = "Welcome"; hint.style.color = "#a3e635";
+          document.getElementById("box").classList.add("leaving"); setTimeout(() => location.replace("/"), 420); return; }
+        if (r.status === 429) { let s = 0; try { s = (await r.json()).retry_after || 0; } catch {}
+          return fail(s ? `Too many tries, wait ${s}s` : "Too many tries"); }
+        fail("Wrong password");
+      } catch { fail("Connection error"); }
+    }
+    input.addEventListener("input", () => paint(input.value.length));
+    document.getElementById("box").addEventListener("submit", e => { e.preventDefault(); clearTimeout(timer); go(input.value); });
+  </script>
+</body>
+</html>
