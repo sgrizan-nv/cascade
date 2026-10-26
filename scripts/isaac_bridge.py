@@ -2138,7 +2138,51 @@ def _reset_props_verified() -> dict:
         result["seed_fallbacks"] = list(fallbacks)
     if errors:
         result["error"] = "reset verification failed: " + "; ".join(errors)
+    elif _LAB_DROP:
+        result["lab_drop"] = _lab_drop_props()
     return result
+
+
+# Cascade Lab: after a VERIFIED reset, lift the configured props above the chute
+# exit with a seeded jitter and let PhysX drop them onto the table. The verified
+# rest spawns stay the reset contract; the drop is an experimental scene event.
+_LAB_DROP = (_scene_config.get("drop") if args.scene_config and _scene_config.get("lab_scene") else None) or None
+_lab_drop_count = [0]
+
+
+def _lab_drop_props() -> dict:
+    from isaacsim.core.experimental.prims import RigidPrim
+    import random as _random
+
+    cfg = _LAB_DROP
+    names = [n for n in cfg.get("props", list(_PROP_SPAWNS)) if n in _PROP_SPAWNS]
+    _lab_drop_count[0] += 1
+    rng = _random.Random(int(cfg.get("seed", 7)) * 1000 + _lab_drop_count[0])
+    cx, cy = cfg.get("center_xy_m", (0.25, 0.10))
+    jitter, height, spacing = float(cfg.get("jitter_m", 0.04)), float(cfg.get("height_m", 0.14)), \
+        float(cfg.get("spacing_s", 0.35))
+    dropped = []
+    for i, name in enumerate(names):
+        x = cx + rng.uniform(-jitter, jitter) + (i - (len(names) - 1) / 2) * float(cfg.get("spread_m", 0.07))
+        y = cy + rng.uniform(-jitter, jitter)
+        # _newton_teleport writes an identity orientation, so Newton drops keep yaw 0.
+        yaw = rng.uniform(-math.pi, math.pi) if args.engine != "newton" else 0.0
+        rp = RigidPrim(f"/World_Props/{name}", reset_xform_op_properties=True)
+        rp.set_world_poses(np.array([[x, y, _PROP_SPAWNS[name][2] + height + BASE_Z]]),
+                           np.array([[math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]]))
+        _zero_prop_velocity(rp)
+        if args.engine == "newton" and not _newton_teleport(name, (x, y, _PROP_SPAWNS[name][2] + height)):
+            raise RuntimeError(f"Newton lab drop rejected prop {name}")
+        for _ in range(max(1, int(spacing / max(args.dt, 1e-4)))):
+            _step_with_frame_history()
+        dropped.append({"name": name, "release_xy_m": [round(x, 4), round(y, 4)], "release_height_m": height})
+    for _ in range(int(1.5 / max(args.dt, 1e-4))):
+        _step_with_frame_history()
+    final = {}
+    for name in names:
+        p = np.asarray(RigidPrim(f"/World_Props/{name}").get_world_poses()[0].numpy(), dtype=float).reshape(3)
+        final[name] = [round(float(p[0]), 4), round(float(p[1]), 4), round(float(p[2] - BASE_Z), 4)]
+    return {"count": _lab_drop_count[0], "dropped": dropped, "landed_m": final}
 
 
 _ovrtx = None

@@ -7,7 +7,7 @@ import stat
 import tempfile
 
 
-SOURCE_PATH = Path(__file__).with_name('visitor-instructions.md')
+SOURCE_PATH = Path(os.environ.get('PAAI_LAB_INSTRUCTIONS') or Path(__file__).with_name('visitor-instructions.md'))
 BEGIN_MARKER = '<!-- BEGIN CASCADE KITCHEN VISITOR INSTRUCTIONS -->'
 END_MARKER = '<!-- END CASCADE KITCHEN VISITOR INSTRUCTIONS -->'
 

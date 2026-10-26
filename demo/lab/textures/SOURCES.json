@@ -1,0 +1,27 @@
+{
+ "hdri": {
+  "machine_shop_02_2k.hdr": {
+   "scene": "workshop",
+   "source": "Poly Haven, https://polyhaven.com/a/machine_shop_02",
+   "download": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/machine_shop_02_2k.hdr",
+   "api": "https://api.polyhaven.com/files/machine_shop_02",
+   "author": "Sergej Majboroda",
+   "license": "CC0-1.0 (https://polyhaven.com/license)",
+   "md5": "3f41f9b715922a46dd3f31175d08756e",
+   "bytes": 6648167,
+   "retrieved": "2026-10-17"
+  },
+  "empty_warehouse_01_2k.hdr": {
+   "scene": "recycling",
+   "source": "Poly Haven, https://polyhaven.com/a/empty_warehouse_01",
+   "download": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/empty_warehouse_01_2k.hdr",
+   "api": "https://api.polyhaven.com/files/empty_warehouse_01",
+   "author": "Sergej Majboroda",
+   "license": "CC0-1.0 (https://polyhaven.com/license)",
+   "md5": "bc3fa539601289d2a176b5e8d3be1740",
+   "bytes": 6581920,
+   "retrieved": "2026-10-17"
+  }
+ },
+ "procedural": "All other files are original procedural textures written by demo/lab/make_lab_textures.py (CC0-1.0); see procedural_textures.json for sha256. Sign and label text is rasterised with Liberation Sans (SIL OFL 1.1)."
+}

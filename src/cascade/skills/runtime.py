@@ -11791,7 +11791,7 @@ def _is_human_curable(stop_reason: str | None) -> bool:
 #: spent four minutes inventing coordinates. The drop zone is a configured
 #: point, not a detected object -- these names mean "use it".
 _DROP_ZONE_WORDS = {"drop zone", "dropzone", "drop-zone", "drop_zone", "the drop zone",
-                    "bin", "the bin", "default", "zona de descarga",
+                    "default", "zona de descarga",
                     "green square", "the green square", "green target square",
                     "the green target square", "cuadrado verde", "el cuadrado verde",
                     "delivery area", "the delivery area", "delivery zone", "the delivery zone",
@@ -11800,6 +11800,14 @@ _DROP_ZONE_WORDS = {"drop zone", "dropzone", "drop-zone", "drop_zone", "the drop
                     "green zone", "the green zone", "delivery square", "the delivery square"}
 
 _OPEN_BOX_WORDS = {"open box", "the open box", "open_box", "beige box", "the beige box",
+                   # Cascade Lab: parts tray (workshop) and recycling bin (recycling).
+                   "bin", "the bin", "parts tray", "the parts tray", "tray", "the tray", "blue tray",
+                   "the blue tray", "recycling bin", "the recycling bin", "blue bin", "the blue bin",
+                   "blue recycling bin", "the blue recycling bin",
+                   # Cascade Lab recycling v3: the calibrated box is the blue PLASTIC sorting bin.
+                   "plastic bin", "the plastic bin", "blue plastic bin", "the blue plastic bin",
+                   "plastic sorting bin", "the plastic sorting bin", "plastic recycling bin",
+                   "the plastic recycling bin",
                    "box", "the box", "storage box", "the storage box", "wooden box", "the wooden box"}
 
 

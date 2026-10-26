@@ -1,0 +1,235 @@
+{
+ "generator": "demo/lab/make_lab_textures.py",
+ "license": "CC0-1.0",
+ "note": "Original procedural textures (numpy + Pillow); fonts: Liberation Sans (SIL OFL 1.1) rasterised into sign and label images.",
+ "files": {
+  "bale_albedo.jpg": {
+   "sha256": "8dc587fb57fd0d67967fb3b315ce0e472cd4c14eea172996a82b6f5d5c863a22",
+   "bytes": 584753
+  },
+  "bale_normal.png": {
+   "sha256": "3ff99a7d1d61e176da735ae0021682ee70cff1d9da7679e48315466bbdd3b102",
+   "bytes": 2226858
+  },
+  "bale_rough.png": {
+   "sha256": "6fde31f2261cc0c783e6ae355b1e8392053b023e6123924aee43ad5bd16b8e3a",
+   "bytes": 735676
+  },
+  "belt_albedo.jpg": {
+   "sha256": "5e7a394c14e973001c3c4da0e6e617d34e216cd39c804c00b3171e53637c6064",
+   "bytes": 65507
+  },
+  "belt_normal.png": {
+   "sha256": "fdfd8759f8d62fd2b84ed099e238d548c9379402a814cd5b66a82d8a225729e9",
+   "bytes": 1285372
+  },
+  "belt_rough.png": {
+   "sha256": "e44881c9029a14c3401cfce5812a5c8947c7c33cac0d5c24987529ff6b3fed6d",
+   "bytes": 391800
+  },
+  "blockwall_albedo.jpg": {
+   "sha256": "15275f1436dbd81af7f92c2b9e11539c6a102e811b1f70db2452e952930a3224",
+   "bytes": 132356
+  },
+  "blockwall_normal.png": {
+   "sha256": "ccd6b3dc96521b798fc5d182804e72d55739a0ba70141fdc04184a48f63494b0",
+   "bytes": 1120531
+  },
+  "blockwall_rough.png": {
+   "sha256": "a3a44796bd424c1193004d2881d97d492a72bb8348f821c8430499017a283594",
+   "bytes": 82204
+  },
+  "bottle_label_albedo.jpg": {
+   "sha256": "d1bafe93d5e9920c9af66891db6f73bd4e3897062a7ae4eff1300b1029145f6a",
+   "bytes": 51823
+  },
+  "can_label_albedo.jpg": {
+   "sha256": "3cf6805fcae172d368d413b11e24c59964c238238a81c088941f822b2538f035",
+   "bytes": 112482
+  },
+  "canbale_albedo.jpg": {
+   "sha256": "5b86ec31c8fb445331b03eb39f11f9f53dcad65813326d6d90dcebad26d5f34c",
+   "bytes": 809416
+  },
+  "canbale_metal.png": {
+   "sha256": "4231f13c18efe75c1ff89001167d48c947a65280baad96ac7e88dbd964a44fca",
+   "bytes": 112412
+  },
+  "canbale_normal.png": {
+   "sha256": "0fd52e7f80152a9e6e0b5f51017647fd4099a2ad275f968676708435a4504b7e",
+   "bytes": 2270163
+  },
+  "canbale_rough.png": {
+   "sha256": "552b21af5399be3feca87febea8b919c419365fae97515426eeec7a17dd0e4e7",
+   "bytes": 769235
+  },
+  "cardboard_albedo.jpg": {
+   "sha256": "536dea11ab4da8404a81bf0dc0e0ad9edca6187d755dce3a08046fe4aff916ab",
+   "bytes": 311500
+  },
+  "cardboard_normal.png": {
+   "sha256": "5c3e07e98740411b0dfe62210a361bcd7bbe9e39fdb1afacf688f6cd56e715b0",
+   "bytes": 2026625
+  },
+  "cardboard_rough.png": {
+   "sha256": "d192129812410d01d69f8ca0d0192f745ce5ce4f395f72fe942b87ca62a1c4d9",
+   "bytes": 697467
+  },
+  "concrete_albedo.jpg": {
+   "sha256": "634f3dede3339a8e85561a33f0b62a8790da042f438e04d69e52a7cd7c46b1bc",
+   "bytes": 586775
+  },
+  "concrete_normal.png": {
+   "sha256": "0da769c6e10c35b16510b01fb9eec0350b94bef78a01f6ca677cbe873603280b",
+   "bytes": 2334197
+  },
+  "concrete_rough.png": {
+   "sha256": "b933948ec85f7dc2a842815a4449cbe835a4a742bf59ab473c1b200b314815ed",
+   "bytes": 663486
+  },
+  "floorpaint_albedo.png": {
+   "sha256": "5d470598e8fdb1f81d20a35366836b64342374244310932de2d9eb372ba4a853",
+   "bytes": 127834
+  },
+  "floorpaint_rough.png": {
+   "sha256": "abf65443c03121615da32cbcff5866b1c1d2d0d6cdaea846a52f4375aaeeca95",
+   "bytes": 93988
+  },
+  "galv_albedo.jpg": {
+   "sha256": "2cca704c185b72cc8071e431c07109eb695da89aabf9126b2fa7e9fed4523980",
+   "bytes": 133175
+  },
+  "galv_rough.png": {
+   "sha256": "b8af40d6f06be52a10a5ef0c64d382e7ec9b850982fb03ce19bdad066ba51335",
+   "bytes": 629124
+  },
+  "hazard_albedo.jpg": {
+   "sha256": "8114968cd82c715229e7289a0b8c0b5376ad5c782bf889b37fffacb7a23f42cb",
+   "bytes": 50929
+  },
+  "hazard_rough.png": {
+   "sha256": "a8052bc115cfd826c600dc8d74c9f662ebea7365c286cd0da3e07ba0c990041c",
+   "bytes": 41262
+  },
+  "machined_normal.png": {
+   "sha256": "27746ac776f7b9f0a05a4035fe4d7124ca0d81d985ad14aaa485d70b627dfd5f",
+   "bytes": 228683
+  },
+  "machined_rough.png": {
+   "sha256": "a1c587ea9e32439221459ef3376f78f45d2c80a694efb6eed5da5b2fc631a7b4",
+   "bytes": 152285
+  },
+  "mat_albedo.jpg": {
+   "sha256": "d17f3f1a920da8850cb35900436af931884c63db03284957630107f0e2885552",
+   "bytes": 16886
+  },
+  "mat_normal.png": {
+   "sha256": "f401ca8a0e2b7b5344669c770556c7084bc1840d7f15eb1992f8476477cdbcb4",
+   "bytes": 5759
+  },
+  "metal_albedo.jpg": {
+   "sha256": "ebc69690f4f56ee90ef797fde5afb24e594c04618662f7b6da66e158ed5087e3",
+   "bytes": 50009
+  },
+  "metal_normal.png": {
+   "sha256": "424c7eb3ec72e3f05fbb498bbcbf19429abce83340005917382d6a04ecec2e8f",
+   "bytes": 167014
+  },
+  "metal_rough.png": {
+   "sha256": "c3aeb221bbfa15ea2c5b3c93fe4b14fed4b93f3daa8e15cbf683be9c3093d83d",
+   "bytes": 143836
+  },
+  "paint_albedo.jpg": {
+   "sha256": "6382d2a99563437ece34ccb9439e086ab64e12224988d5a0685a40f9ff638962",
+   "bytes": 54545
+  },
+  "paint_normal.png": {
+   "sha256": "883879d2eb16ad54bee77d15689282c36022ab91672223b52efa91f9a727a06e",
+   "bytes": 1704017
+  },
+  "paint_rough.png": {
+   "sha256": "5e03940a43e60e70ff8f92385300f4bb9007f26ee7eed4cb194594adc1f4f0c6",
+   "bytes": 567652
+  },
+  "paper_albedo.jpg": {
+   "sha256": "8d487906b3940bd7263a5c02d5ff8fc0e9ab8391eaa25ca4379fc2cc9b82b36c",
+   "bytes": 89278
+  },
+  "paper_normal.png": {
+   "sha256": "6bf4ed671f6e013e7aa6fcb5c4d381b827d785da91e277237093fbea7446cae1",
+   "bytes": 815749
+  },
+  "pegboard_albedo.jpg": {
+   "sha256": "27e995066bbe607a3527c266f25e0d579a95279d4414fe14aae4c3c429813154",
+   "bytes": 234037
+  },
+  "pegboard_normal.png": {
+   "sha256": "d5b6a8a8ae6b3c539ce6576e6d77db8727c144052d5f50a40dfa0a63bb0c0450",
+   "bytes": 1890251
+  },
+  "pegboard_rough.png": {
+   "sha256": "2accef8493778b3341d19fb05d8b7fb4da63f05eb696a490293fa406c65c9713",
+   "bytes": 655473
+  },
+  "placard_glass_albedo.jpg": {
+   "sha256": "ace4eac33a0dea5bf84f037ff406477b0ee2afa663ae76b053af5c69182cb7ca",
+   "bytes": 57957
+  },
+  "placard_metal_albedo.jpg": {
+   "sha256": "5f8e1205003a088de973672d2d1ed450b53aa02d55b372c88552b19bcba93484",
+   "bytes": 61228
+  },
+  "placard_paper_albedo.jpg": {
+   "sha256": "23f479c655dd4d7357f36f6f568a058d0721c06fb84e191dc32f06906739a8de",
+   "bytes": 55704
+  },
+  "placard_plastic_albedo.jpg": {
+   "sha256": "67cb5b6fa11b081cda8920e4fce0c23000b4b1b886cccf8d6d53bdebb2433509",
+   "bytes": 63834
+  },
+  "screen_albedo.jpg": {
+   "sha256": "e526357a21573d360d125a6e571dca89b42c77667dadcb31592e759daaf810c2",
+   "bytes": 119618
+  },
+  "sign_caution_albedo.jpg": {
+   "sha256": "1f6847635d03b7c1de266f3cd2b065b63180fa353d557ea5bca157a34ac2564e",
+   "bytes": 194125
+  },
+  "sign_cell_albedo.jpg": {
+   "sha256": "716b1c90703cc6f9722f460da4fafe0b0c154ba02d2b815557f7088dd980d1a0",
+   "bytes": 152074
+  },
+  "sign_fire_albedo.jpg": {
+   "sha256": "c83204786bc97b96355950d7d3ed34d5be84e876ad05b099c2b8933b0e50cc62",
+   "bytes": 85208
+  },
+  "sign_line_albedo.jpg": {
+   "sha256": "6695d399af3ca604a6fea7f817b20eed0e0323bdd2f52b33877d060052646a44",
+   "bytes": 154211
+  },
+  "sign_ppe_albedo.jpg": {
+   "sha256": "cc7c0a64c32e49f80949033808da3432b43538124837b0bbcff15f629188b8b4",
+   "bytes": 162589
+  },
+  "steel_albedo.jpg": {
+   "sha256": "8fcffe2cf83b18670a981105716e7751223a09e22c97df352c0eea68b052f491",
+   "bytes": 89070
+  },
+  "steel_normal.png": {
+   "sha256": "8274d0c07873b8e92b20425d6765af2883d5423b9b9a4eecf8303d0ed3e50906",
+   "bytes": 1965499
+  },
+  "steel_rough.png": {
+   "sha256": "f5e1bc113417d86cefa8fe0c2a70c62b3ff0baf2abd173c234142aeaeb05a070",
+   "bytes": 3277340
+  },
+  "wood_albedo.jpg": {
+   "sha256": "6834a30f0b2d0bb23c61c040320df14c7ba6c61ebee3f30eb8b37b54a1ca5e57",
+   "bytes": 122340
+  },
+  "wood_normal.png": {
+   "sha256": "45b01c6de9ea4760eeb3097b4a2dc740c3a443805b6d4f10079a52602cf52f27",
+   "bytes": 1097464
+  }
+ }
+}

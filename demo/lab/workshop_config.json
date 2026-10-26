@@ -1,0 +1,211 @@
+{
+ "version": 1,
+ "robot_prim": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+ "cube_positions": {
+  "green_cube": [
+   0.24,
+   0.01,
+   0.03
+  ],
+  "pink_cube": [
+   0.27,
+   0.11,
+   0.03
+  ]
+ },
+ "cube_dimensions": {
+  "pink_cube": [
+   0.0375,
+   0.0375,
+   0.06
+  ],
+  "green_cube": [
+   0.0375,
+   0.0375,
+   0.06
+  ]
+ },
+ "counter": {
+  "min": [
+   -0.15987323186177282,
+   -0.379085082641188,
+   -0.03
+  ],
+  "max": [
+   0.9867574274915567,
+   0.3795904990656434,
+   0.0
+  ]
+ },
+ "open_box": {
+  "name": "open box",
+  "center_xy_m": [
+   0.3,
+   -0.14
+  ],
+  "outer_dimensions_m": [
+   0.14,
+   0.14,
+   0.04
+  ],
+  "wall_thickness_m": 0.006,
+  "base_thickness_m": 0.004,
+  "interior_dimensions_m": [
+   0.128,
+   0.128,
+   0.036
+  ],
+  "color": [
+   0.09,
+   0.27,
+   0.62
+  ],
+  "support_top_z_m": 0.004,
+  "rim_top_z_m": 0.04,
+  "note": "Blue painted steel parts tray; same calibrated 128 mm cavity as the kitchen box.",
+  "style": "painted_steel"
+ },
+ "target_pad": {
+  "name": "green square",
+  "center_xy_m": [
+   0.14,
+   -0.27
+  ],
+  "outer_size_m": 0.16,
+  "border_width_m": 0.01,
+  "surface_z_m": 0.0006,
+  "support_top_z_m": 0.0,
+  "color": [
+   0.055,
+   0.54,
+   0.11
+  ],
+  "fill_opacity": 0.23,
+  "note": "Visual paint on the countertop; successful placement requires the whole collider inside the border."
+ },
+ "props": [
+  {
+   "name": "hex_nut",
+   "visual": "lab:hex_nut",
+   "position": [
+    0.32,
+    0.005,
+    0.016
+   ],
+   "dimensions": [
+    0.052,
+    0.052,
+    0.032
+   ],
+   "visual_dimensions": [
+    0.052,
+    0.052,
+    0.032
+   ],
+   "visual_offset": [
+    0,
+    0,
+    0
+   ],
+   "proxy": "cylinder",
+   "mass": 0.09,
+   "color": [
+    0.7,
+    0.71,
+    0.73
+   ]
+  },
+  {
+   "name": "brass_gear",
+   "visual": "lab:gear",
+   "position": [
+    0.225,
+    0.215,
+    0.013
+   ],
+   "dimensions": [
+    0.066,
+    0.066,
+    0.026
+   ],
+   "visual_dimensions": [
+    0.066,
+    0.066,
+    0.026
+   ],
+   "visual_offset": [
+    0,
+    0,
+    0
+   ],
+   "proxy": "cylinder",
+   "mass": 0.08,
+   "color": [
+    0.78,
+    0.58,
+    0.22
+   ]
+  },
+  {
+   "name": "red_collar",
+   "visual": "lab:collar",
+   "position": [
+    0.18,
+    0.12,
+    0.015
+   ],
+   "dimensions": [
+    0.072,
+    0.072,
+    0.03
+   ],
+   "visual_dimensions": [
+    0.072,
+    0.072,
+    0.03
+   ],
+   "visual_offset": [
+    0,
+    0,
+    0
+   ],
+   "proxy": "ring",
+   "mass": 0.06,
+   "color": [
+    0.72,
+    0.06,
+    0.04
+   ],
+   "bore_ratio": 0.55
+  }
+ ],
+ "physics_material": {
+  "static_friction": 1.1,
+  "dynamic_friction": 1.0,
+  "restitution": 0.0
+ },
+ "cube_surfaces": {
+  "green_cube": "stone",
+  "pink_cube": "puzzle"
+ },
+ "scene_name": "cascade-lab-workshop-v1",
+ "lab_scene": "workshop",
+ "fixtures": [
+  {
+   "name": "steel_peg",
+   "kind": "peg",
+   "position": [
+    0.36,
+    -0.3
+   ],
+   "diameter": 0.024,
+   "height": 0.08,
+   "color": [
+    0.72,
+    0.73,
+    0.75
+   ],
+   "description": "Steel peg bolted to the workbench; the red collar fits over it"
+  }
+ ]
+}
