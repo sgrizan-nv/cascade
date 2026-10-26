@@ -73,7 +73,7 @@
    "visual": "lab:soda_can",
    "position": [
     0.19,
-    0.27,
+    0.28,
     0.05
    ],
    "dimensions": [
@@ -103,8 +103,8 @@
    "name": "yogurt_cup",
    "visual": "lab:yogurt_cup",
    "position": [
-    0.2,
-    0.155,
+    0.18,
+    0.14,
     0.033
    ],
    "dimensions": [
@@ -134,50 +134,19 @@
    "name": "plastic_bottle",
    "visual": "lab:bottle",
    "position": [
-    0.31,
-    0.19,
-    0.06
+    0.27,
+    0.2,
+    0.055
    ],
    "dimensions": [
     0.055,
     0.055,
-    0.12
+    0.11
    ],
    "visual_dimensions": [
     0.055,
     0.055,
-    0.12
-   ],
-   "visual_offset": [
-    0,
-    0,
-    0
-   ],
-   "proxy": "cylinder",
-   "mass": 0.03,
-   "color": [
-    0.45,
-    0.7,
-    0.85
-   ]
-  },
-  {
-   "name": "tin_can",
-   "visual": "lab:tin_can",
-   "position": [
-    0.31,
-    0.31,
-    0.038
-   ],
-   "dimensions": [
-    0.055,
-    0.055,
-    0.076
-   ],
-   "visual_dimensions": [
-    0.055,
-    0.055,
-    0.076
+    0.11
    ],
    "visual_offset": [
     0,
@@ -187,9 +156,9 @@
    "proxy": "cylinder",
    "mass": 0.06,
    "color": [
-    0.12,
-    0.42,
-    0.14
+    0.45,
+    0.7,
+    0.85
    ]
   }
  ],
@@ -226,7 +195,16 @@
    ],
    "label": "metal",
    "description": "Yellow sorting bin labelled METAL, fixed to the deck: open top, four walls and a floor",
-   "note": "Released above its observed rim (perception). Rim 5 cm and this XY keep the release and the post-place retreat inside the measured top-down IK envelope (retreat ~0.15 m)."
+   "note": "Released above its observed rim (perception). Rim 5 cm and this XY keep the release and the post-place retreat inside the measured top-down IK envelope (retreat ~0.15 m).",
+   "aliases": [
+    "metal bin",
+    "yellow bin",
+    "yellow metal bin",
+    "metal sorting bin",
+    "yellow sorting bin",
+    "metal recycling bin",
+    "yellow metal sorting bin"
+   ]
   }
  ],
  "conveyor": {

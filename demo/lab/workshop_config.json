@@ -195,8 +195,8 @@
    "name": "steel_peg",
    "kind": "peg",
    "position": [
-    0.36,
-    -0.3
+    0.14,
+    0.27
    ],
    "diameter": 0.024,
    "height": 0.08,
@@ -205,7 +205,9 @@
     0.73,
     0.75
    ],
-   "description": "Steel peg bolted to the workbench; the red collar fits over it"
+   "description": "Steel peg bolted to the workbench; the red collar fits over it",
+   "aliases": ["metal peg", "pin", "steel pin", "metal pin"],
+   "seat_tolerance_m": 0.012
   }
  ]
 }

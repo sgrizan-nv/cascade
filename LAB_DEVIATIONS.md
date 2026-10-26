@@ -9,13 +9,8 @@ backend, same as the production deployment). Changes, all opt-in by env/config:
 - demo/scene_identity.py: lab configs bind their own source bytes instead of
   the Cocina Asier audit (`experimental: true` in the identity).
 - deploy/runtime/runtime.py: PAAI_LAB_BIND (bridge/camera bind inside a bridged
-  container), PAAI_LAB_SCENE_CONFIG, PAAI_LAB_INSTRUCTIONS, PAAI_LAB_ROBOT_NAME. With
-  PAAI_LAB_BIND set, visitor URLs may be plain http on the loopback PAAI_HTTP_BIND (the
-  cells are not on Tailscale; the lab app is the only public front door).
+  container), PAAI_LAB_SCENE_CONFIG, PAAI_LAB_INSTRUCTIONS, PAAI_LAB_ROBOT_NAME.
 - demo/kitchen/visitor_instructions.py: instruction file from PAAI_LAB_INSTRUCTIONS.
-- src/cascade/sim/placement.py: with CASCADE_SCENE_CONFIG naming a lab config, the post-place
-  verdict comes from live PhysX rigid-body pose + speed over >= 0.6 s of sim time against the
-  config's tray cavity / green square (the kitchen auditor is bound to kitchen props).
 - src/cascade/skills/runtime.py: tray/bin synonyms map to the open-box destination
   ("bin" no longer means the green square).
 - scripts/isaac_bridge.py: optional `drop` block in lab configs; after a VERIFIED reset the
@@ -26,3 +21,24 @@ backend, same as the production deployment). Changes, all opt-in by env/config:
   authoring time; missing files fall back to plain materials (CASCADE_LAB_TEXTURES=0 forces it).
 
 Not production. The kitchen scene, unchanged, remains the default.
+
+## Isaac Sim 6.2 + Newton (2026-10-17, Isaac Sim 6.2 agent)
+
+Rebased on johnnynunez/cascade main `ec2d95c` (branch `lab-6.2-newton` in `/tmp/cascade_lab_src62`); the 4
+upstream commits after `42eaddd4` are merged into `configs/demo.yaml`, `src/cascade/agent/aspire.py`,
+`apps/demo.py`, `memory/programs.py`, `skills/library.py`, `skills/runtime.py`. Opt-in, default unchanged:
+
+- deploy/runtime/runtime.py: `PAAI_LAB_ENGINE=newton|physx` (default physx) picks the bridge `--engine`, the
+  engine the health check requires from the bridge ping, and the smoke contact channel
+  (`newton_mjwarp_contact_force` on Newton). `ISAACSIM_PATH` is passed to the bridge, which is how upstream
+  `scripts/isaac_runtime.py` admits a 6.2 source release.
+- scripts/isaac_bridge.py: lab `drop` on Newton goes through upstream `_newton_teleport` (identity yaw).
+- scripts/isaac_bridge.py: on Newton the stage/timeline get `1/dt` time codes per second (env
+  `CASCADE_NEWTON_ONE_STEP_PER_UPDATE=0` disables). The Newton experience steps with fixed time codes (24/s on
+  this stage), so each `app.update()` advanced 5 physics steps and every render landed on an intermediate step:
+  all four cameras failed with "render frame has no unique matching state history" (the open 6.2 camera-cadence
+  item in docs/NEWTON_ENGINE.md, candidate fix "one physics step per update"). Measured cost: 0.25x real time vs
+  0.39x for the 6.1 PhysX cell on the same shared GPU.
+- assets/newton/ (rebot_gripper_hulls.usda) added to the bundle: the Newton bridge needs the vendor gripper hulls.
+- Image `cascade-lab:6.2-x86_64` = the lab Dockerfile on `isaac-sim-src:6.2.0-74a9356b`, built from
+  isaac-sim/IsaacSim tag v6.2.0 with the official recipe. Compose: `PAAI_LAB_ENGINE=newton`, `ISAACSIM_PATH=/isaac-sim`.

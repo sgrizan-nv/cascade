@@ -968,6 +968,16 @@ from isaacsim.core.experimental.prims import Articulation  # noqa: E402
 
 import faulthandler
 faulthandler.dump_traceback_later(120, repeat=False, exit=False)
+if args.engine == "newton" and os.environ.get("CASCADE_NEWTON_ONE_STEP_PER_UPDATE", "1") == "1":
+    # Cascade Lab: the Newton experience steps with fixed timeline time codes (24/s on this stage), so one
+    # app.update() advanced 5 physics steps and every render landed on an intermediate step with no recorded
+    # state ("render frame has no unique matching state history" on all cameras). One time code per physics
+    # step makes each update exactly one step, as on PhysX.
+    import omni.timeline
+    stage.SetTimeCodesPerSecond(1.0 / args.dt)
+    omni.timeline.get_timeline_interface().set_time_codes_per_second(1.0 / args.dt)
+    print(f"[bridge] newton: timeline time codes per second = {1.0 / args.dt:g} (one physics step per update)",
+          flush=True)
 print(f"[bridge] stage playback range: {ensure_time_code_range(stage)}", flush=True)
 print("[bridge] initializing contact reports", flush=True)
 if _REQUIRE_CUDA and args.engine == "physx":

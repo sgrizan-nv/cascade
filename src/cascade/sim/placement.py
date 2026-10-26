@@ -60,7 +60,55 @@ print('LABPOSE ' + _lab_j.dumps({'sim_time': float(SimulationManager.get_simulat
 """
 
 
+def lab_bin_fixture(destination):
+    """Cascade Lab: name of the static sorting-bin fixture a destination names, else None.
+
+    Matches the fixture's configured aliases exactly, or any phrase holding its label and "bin"."""
+    try:
+        config = _lab_config()
+    except (OSError, ValueError, TypeError):
+        return None
+    words = str(destination or "").strip().lower().replace("_", " ").split()
+    words = [w for w in words if w != "the"]
+    for fixture in (config or {}).get("fixtures", []):
+        if fixture.get("kind") != "bin":
+            continue
+        aliases = {a.lower() for a in fixture.get("aliases", [])} | {fixture["name"].replace("_", " ")}
+        if " ".join(words) in aliases or (fixture.get("label") in words and "bin" in words):
+            return fixture["name"]
+    return None
+
+
+def lab_peg_fixture(destination):
+    """Cascade Lab: the calibrated peg fixture a destination names ("steel peg", "the peg"), else None.
+
+    A thin pin defeats the observed-top release height (depth misses its tip), so the peg is
+    released like the open box: from its configured position and height."""
+    try:
+        config = _lab_config()
+    except (OSError, ValueError, TypeError):
+        return None
+    words = [w for w in str(destination or "").strip().lower().replace("_", " ").split() if w != "the"]
+    for fixture in (config or {}).get("fixtures", []):
+        if fixture.get("kind") != "peg":
+            continue
+        tokens = set(fixture["name"].split("_"))
+        aliases = {a.lower() for a in fixture.get("aliases", [])} | {fixture["name"].replace("_", " ")}
+        if " ".join(words) in aliases or ("peg" in words and set(words) <= tokens):
+            return fixture
+    return None
+
+
 def _lab_region(config, destination):
+    for fixture in config.get("fixtures", []):
+        if fixture.get("kind") == "peg" and destination == fixture["name"]:
+            return {"center_xy_m": fixture["position"], "radius_m": fixture.get("seat_tolerance_m", 0.012),
+                    "support_top_z_m": 0.0, "footprint_inside": False}
+        if fixture.get("kind") == "bin" and destination == fixture["name"]:
+            wall = fixture["wall_thickness_m"]
+            return {"center_xy_m": fixture["position"],
+                    "half_m": [d / 2 - wall for d in fixture["outer_dimensions_m"][:2]],
+                    "support_top_z_m": fixture["base_thickness_m"], "footprint_inside": False}
     if destination == "open box" and "open_box" in config:
         box = config["open_box"]
         return {"center_xy_m": box["center_xy_m"],
@@ -122,7 +170,11 @@ def _read_lab_placement(endpoint, config, label, destination):
     speed = max(r["speed_m_s"] for r in records[-3:])
     cx, cy = region["center_xy_m"]
     reach = max(dims[0], dims[1]) / 2 if region["footprint_inside"] else 0.0
-    margin = min(region["half_m"][0] - abs(last[0] - cx) - reach, region["half_m"][1] - abs(last[1] - cy) - reach)
+    if "radius_m" in region:
+        margin = region["radius_m"] - math.hypot(last[0] - cx, last[1] - cy)
+    else:
+        margin = min(region["half_m"][0] - abs(last[0] - cx) - reach,
+                     region["half_m"][1] - abs(last[1] - cy) - reach)
     resting = last[2] <= region["support_top_z_m"] + max(dims) / 2 + 0.01
     measured.update(object=object_name, position_m=[round(v, 4) for v in last], inside_margin_m=round(margin, 4),
                     drift_m=round(drift, 4), max_speed_m_s=round(speed, 4), samples=len(records),

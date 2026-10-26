@@ -434,7 +434,9 @@ def setup(urls_file=None, sso_confirmed=False, sso_issuer=None, sso_audience=Non
         # active tool leases alive and recreates the runtime on the next call.
         'mcp': {'sessionIdleTtlMs': 60000, 'servers': {'cascade': {'command': env['PAAI_APP_PYTHON'],
             'args': ['-m', 'cascade.apps.mcp_server', '--launch-owner', owner['owner'], '--launch-state-dir', str(launch)],
-            'cwd': env['PAAI_PERCEPTION_DIR'], 'env': mcp_env, 'connectionTimeoutMs': 120000, 'requestTimeoutMs': 300000}}}}
+            'cwd': env['PAAI_PERCEPTION_DIR'], 'env': mcp_env, 'connectionTimeoutMs': 120000,
+            # Lab cells share a GPU: a persistent pick can exceed 300 s, and a host cancel latches the e-stop.
+            'requestTimeoutMs': int(os.environ.get('PAAI_MCP_REQUEST_TIMEOUT_MS', '300000'))}}}}
     if urls.get('tutorial') and urlsplit(urls['tutorial']).scheme == 'https':
         config['gateway']['publicOrigin'] = urlsplit(urls['tutorial']).scheme + '://' + urlsplit(urls['tutorial']).netloc
     atomic(profile / 'openclaw.json', config)
