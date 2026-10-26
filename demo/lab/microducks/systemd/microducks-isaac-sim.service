@@ -1,0 +1,13 @@
+[Unit]
+Description=Microducks live physics: NVIDIA Isaac Sim 6.2 + Newton, 12 ducks, one ONNX policy, poses to /dev/shm (GPU 1)
+After=network-online.target
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/microducks-live/isaac
+Environment=CUDA_VISIBLE_DEVICES=1
+Environment=OMNI_KIT_ACCEPT_EULA=YES
+ExecStart=/home/ubuntu/Projects/microduck-curtain-call/.venvs/isaac/bin/python /home/ubuntu/microducks-live/isaac/isaac_ducks_sim.py --kit --live --servo pd --ctrl-port 18201 --shm /dev/shm/microducks_pose.bin
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

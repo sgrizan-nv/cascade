@@ -1,0 +1,12 @@
+[Unit]
+Description=Keynote demo watchdog: restarts the keynote simulation, OVRTX cameras, Nemotron or the lab app when they stay broken (keynote_night/ops)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -u /home/ubuntu/keynote_night/ops/keynote_watchdog.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
