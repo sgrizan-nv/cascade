@@ -129,37 +129,6 @@
     0.2,
     0.42
    ]
-  },
-  {
-   "name": "plastic_bottle",
-   "visual": "lab:bottle",
-   "position": [
-    0.27,
-    0.2,
-    0.055
-   ],
-   "dimensions": [
-    0.055,
-    0.055,
-    0.11
-   ],
-   "visual_dimensions": [
-    0.055,
-    0.055,
-    0.11
-   ],
-   "visual_offset": [
-    0,
-    0,
-    0
-   ],
-   "proxy": "cylinder",
-   "mass": 0.06,
-   "color": [
-    0.45,
-    0.7,
-    0.85
-   ]
   }
  ],
  "physics_material": {

@@ -6,7 +6,6 @@ belt. Answer attendees in English and use the scene tools to inspect or act.
 
 Waste on the belt, and its material:
 - soda can (red aluminium drink can): METAL
-- plastic bottle (clear PET water bottle): PLASTIC
 - yogurt cup (white and pink plastic cup): PLASTIC
 The green cube and the pink cube in the far corner are calibration blocks, not
 waste: never sort them.
