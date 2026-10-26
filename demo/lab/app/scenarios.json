@@ -1,0 +1,438 @@
+[
+ {
+  "id": "microducks",
+  "kind": "sim",
+  "title": "Microducks",
+  "icon": "🦆",
+  "accent": "#ffcc33",
+  "gpu": 1,
+  "stream": "http://127.0.0.1:18200",
+  "subtitle": "12 ducks in the schoolyard",
+  "robot": "12 Microducks",
+  "reset_message": "Ducks scattered across the schoolyard.",
+  "cams": [
+   "overview",
+   "ramp",
+   "orbit",
+   "chase",
+   "duck"
+  ],
+  "cam_labels": {
+   "overview": "Overview",
+   "ramp": "Ramp",
+   "orbit": "Orbit",
+   "chase": "Follow duck",
+   "duck": "Duck camera"
+  },
+  "objects": [],
+  "dests": [],
+  "quick": [
+   {
+    "em": "🚶",
+    "title": "Everyone walk",
+    "sub": "wander the yard",
+    "action": "walk",
+    "text": ""
+   },
+   {
+    "em": "⛰️",
+    "title": "Ramp time",
+    "sub": "all head for the ramps",
+    "action": "ramps",
+    "text": ""
+   },
+   {
+    "em": "✋",
+    "title": "Stop",
+    "sub": "everyone stands still",
+    "action": "stop",
+    "text": ""
+   },
+   {
+    "em": "💥",
+    "title": "Push the duck",
+    "sub": "shove the selected duck",
+    "action": "push",
+    "text": ""
+   },
+   {
+    "em": "🔀",
+    "title": "Reset ducks",
+    "sub": "scatter all 12 again",
+    "action": "reset",
+    "text": ""
+   }
+  ],
+  "examples": [
+   "Tap a duck number to ride its head camera"
+  ],
+  "about": "Simulation: 12 Microducks in one shared NVIDIA Isaac Sim 6.2 + Newton world, rendered live with Omniverse RTX (OVRTX). All 12 run the same ONNX walking and recovery policy at 50 Hz (trained in Isaac Lab with BAM actuator models). Velocity commands come from the buttons or from typed orders: an LLM agent (NVIDIA Nemotron 3.5 Bolt) picks a tool and the navigator plans the paths. The policy does the walking and the getting up."
+ },
+ {
+  "id": "keynote",
+  "kind": "sim",
+  "title": "Microducks · Keynote",
+  "icon": "🎬",
+  "accent": "#76b900",
+  "gpu": 0,
+  "stream": "http://127.0.0.1:18210",
+  "subtitle": "Nemotron steers 12 ducks from 4 cameras",
+  "robot": "12 Microducks",
+  "reset_message": "Ducks back on their keynote start spots.",
+  "reset_sub": "Soft reset: ducks back on their start spots, Nemotron starts fresh",
+  "cams": [
+   "overview",
+   "ramp",
+   "orbit",
+   "chase",
+   "duck",
+   "map",
+   "eye"
+  ],
+  "cam_labels": {
+   "overview": "Overview",
+   "ramp": "Ramp",
+   "orbit": "Orbit",
+   "chase": "Follow duck",
+   "duck": "Duck camera",
+   "map": "Perceived map",
+   "eye": "Nemotron's camera"
+  },
+  "objects": [],
+  "dests": [],
+  "quick": [
+   {
+    "em": "⭕",
+    "title": "Gather",
+    "sub": "on the centre circle",
+    "order": "Everyone, gather in the centre circle.",
+    "text": ""
+   },
+   {
+    "em": "🦆",
+    "title": "Line up five",
+    "sub": "at the north ramp",
+    "order": "Five of you, line up.",
+    "text": ""
+   },
+   {
+    "em": "👀",
+    "title": "Look",
+    "sub": "is the north ramp clear?",
+    "order": "Look through the north-east camera. Is the north ramp clear?",
+    "text": ""
+   },
+   {
+    "em": "⛰️",
+    "title": "Cross the ramp",
+    "sub": "in single file",
+    "order": "Now walk over the north ramp in single file.",
+    "text": ""
+   },
+   {
+    "em": "🛝",
+    "title": "Ramp & freeze",
+    "sub": "3 ducks up the north ramp, stay",
+    "order": "Three of you, go up onto the north ramp and stay there.",
+    "text": ""
+   },
+   {
+    "em": "🏔️",
+    "title": "All ramps",
+    "sub": "7 ducks on top, frozen",
+    "order": "Everyone onto the ramps and freeze.",
+    "text": ""
+   },
+   {
+    "em": "🔄",
+    "title": "Walk in a circle",
+    "sub": "parade round the centre",
+    "order": "Everyone, walk around the centre circle.",
+    "text": ""
+   },
+   {
+    "em": "🌀",
+    "title": "Spin!",
+    "sub": "turn on the spot",
+    "order": "Spin around on the spot!",
+    "text": ""
+   },
+   {
+    "em": "✋",
+    "title": "Stop!",
+    "sub": "everyone freezes",
+    "order": "Stop!",
+    "text": ""
+   },
+   {
+    "em": "🔁",
+    "title": "Regroup",
+    "sub": "back to the circle",
+    "order": "Regroup in the centre circle.",
+    "text": ""
+   },
+   {
+    "em": "🚶",
+    "title": "Everyone walk",
+    "sub": "wander the yard",
+    "action": "walk",
+    "text": ""
+   },
+   {
+    "em": "💥",
+    "title": "Push the duck",
+    "sub": "shove the selected duck",
+    "action": "push",
+    "text": ""
+   },
+   {
+    "em": "🔄",
+    "title": "Soft reset",
+    "sub": "ducks back to the start",
+    "action": "reset",
+    "text": ""
+   }
+  ],
+  "orders": [
+   "Everyone, gather in the centre circle.",
+   "Five of you, line up.",
+   "Look through the north-east camera. Is the north ramp clear?",
+   "Now walk over the north ramp in single file.",
+   "Three of you, go up onto the north ramp and stay there.",
+   "Everyone onto the ramps and freeze.",
+   "Everyone, walk around the centre circle.",
+   "Spin around on the spot!",
+   "Stop!",
+   "Regroup in the centre circle.",
+   "Scatter!",
+   "How many ducks are standing?",
+   "Give duck 3 a light push",
+   "Go back to wandering"
+  ],
+  "order_hint": "· NVIDIA Nemotron 3.5 Bolt reads the cameras, then picks one tool",
+  "agent_feed": true,
+  "examples": [
+   "Tap a duck number to ride its head camera"
+  ],
+  "about": "Live version of the keynote demo: 12 Microducks in NVIDIA Isaac Sim 6.2 + Newton on the Holodeck set, rendered live with Omniverse RTX (OVRTX). The navigator never reads the simulator: 4 fixed RGB-D cameras (Isaac Lab cameras, Newton Warp renderer) mapped the yard in the first 1.5 s and track every duck from depth and segmentation at 10 Hz. Typed orders go to NVIDIA Nemotron 3.5 Bolt, which can read the perceived state or look through a camera, then picks one tool; after each order the cameras check the result and Nemotron reports it below. All 12 ducks run the same ONNX walking policy at 50 Hz. Runs at about 0.8x real time.",
+  "hard_reset": true
+ },
+ {
+  "id": "workshop",
+  "title": "Workshop",
+  "icon": "🔧",
+  "accent": "#f5a623",
+  "gpu": 0,
+  "container": "cascade-lab-workshop",
+  "subtitle": "Nuts, gears and a parts tray",
+  "robot": "Workshop robot",
+  "reset_message": "Workbench reset.",
+  "cam_labels": {
+   "kitchen": "Room",
+   "worktop": "Worktop",
+   "side": "Side"
+  },
+  "objects": [
+   {
+    "id": "nut",
+    "label": "Hex nut",
+    "em": "🔩",
+    "sw": "#b8bcc2",
+    "noun": "the steel hex nut"
+   },
+   {
+    "id": "gear",
+    "label": "Brass gear",
+    "em": "⚙️",
+    "sw": "#c79a3a",
+    "noun": "the brass gear"
+   },
+   {
+    "id": "collar",
+    "label": "Red collar",
+    "em": "⭕",
+    "sw": "#b81d12",
+    "noun": "the red collar"
+   },
+   {
+    "id": "gcube",
+    "label": "Green cube",
+    "em": "🟩",
+    "sw": "#4caf50",
+    "noun": "the green cube"
+   },
+   {
+    "id": "pcube",
+    "label": "Pink cube",
+    "em": "🧩",
+    "sw": "#ff6fb5",
+    "noun": "the pink cube"
+   }
+  ],
+  "dests": [
+   {
+    "id": "tray",
+    "label": "Parts tray",
+    "em": "🧰",
+    "tpl": "Put {o} in the blue parts tray."
+   },
+   {
+    "id": "pad",
+    "label": "Green square",
+    "em": "🟢",
+    "tpl": "Put {o} on the green square."
+   },
+   {
+    "id": "lift",
+    "label": "Just lift it",
+    "em": "⬆️",
+    "tpl": "Pick up {o} and lift it up."
+   }
+  ],
+  "quick": [
+   {
+    "em": "🔩→🧰",
+    "title": "Nut into the tray",
+    "text": "Put the steel hex nut in the blue parts tray.",
+    "sub": "pick & place"
+   },
+   {
+    "em": "⚙️→🟢",
+    "title": "Gear to the square",
+    "text": "Put the brass gear on the green square.",
+    "sub": "pick & place"
+   },
+   {
+    "em": "⭕→🧰",
+    "title": "Collar into the tray",
+    "text": "Put the red collar in the blue parts tray.",
+    "sub": "pick & place"
+   },
+   {
+    "em": "👀",
+    "title": "Inspect the bench",
+    "text": "What parts can you see on the workbench?",
+    "sub": "looks with the cameras"
+   },
+   {
+    "em": "👋",
+    "title": "Wave hello",
+    "text": "Wave hello to everyone.",
+    "sub": "gesture"
+   },
+   {
+    "em": "🏠",
+    "title": "Go home",
+    "text": "Go back to your home position.",
+    "sub": "reset the arm"
+   },
+   {
+    "em": "✅",
+    "title": "Did it work?",
+    "text": "Check whether your last action worked.",
+    "sub": "verifies with cameras"
+   }
+  ],
+  "examples": [
+   "Put the steel hex nut in the blue parts tray",
+   "Move the brass gear to the green square",
+   "What parts can you see on the bench?",
+   "Which part is closest to you?",
+   "Put the red collar in the tray",
+   "Wave hello"
+  ]
+ },
+ {
+  "id": "recycling",
+  "title": "Recycling",
+  "icon": "♻️",
+  "accent": "#2ec27e",
+  "gpu": 0,
+  "container": "cascade-lab-recycling",
+  "subtitle": "Sort the waste on the conveyor belt",
+  "robot": "Recycling robot",
+  "reset_message": "Fresh waste laid out on the belt.",
+  "cam_labels": {
+   "kitchen": "Plant",
+   "worktop": "Worktop",
+   "side": "Side"
+  },
+  "objects": [
+   {
+    "id": "can",
+    "label": "Soda can",
+    "em": "🥫",
+    "sw": "#c8241c",
+    "noun": "the soda can"
+   },
+   {
+    "id": "cup",
+    "label": "Yogurt cup",
+    "em": "🥛",
+    "sw": "#e86aa0",
+    "noun": "the yogurt cup"
+   }
+  ],
+  "dests": [
+   {
+    "id": "plastic",
+    "label": "Plastic bin",
+    "em": "🔵",
+    "tpl": "Put {o} in the blue plastic bin."
+   },
+   {
+    "id": "metal",
+    "label": "Metal bin",
+    "em": "🟡",
+    "tpl": "Put {o} in the yellow metal bin."
+   },
+   {
+    "id": "lift",
+    "label": "Just lift it",
+    "em": "⬆️",
+    "tpl": "Pick up {o} and lift it up."
+   }
+  ],
+  "quick": [
+   {
+    "em": "♻️",
+    "title": "Sort the waste",
+    "text": "Sort the waste.",
+    "sub": "looks, decides plastic or metal, sorts every item",
+    "big": true
+   },
+   {
+    "em": "🥫→🟡",
+    "title": "Can to metal",
+    "text": "Put the soda can in the yellow metal bin.",
+    "sub": "sort metal"
+   },
+   {
+    "em": "🥛→🔵",
+    "title": "Cup to plastic",
+    "text": "Put the yogurt cup in the blue plastic bin.",
+    "sub": "sort plastic"
+   },
+   {
+    "em": "👀",
+    "title": "What's on the belt?",
+    "text": "What waste can you see on the belt, and is each item plastic or metal?",
+    "sub": "looks and classifies"
+   },
+   {
+    "em": "✅",
+    "title": "Did it work?",
+    "text": "Check whether your last action worked.",
+    "sub": "verifies with cameras"
+   }
+  ],
+  "examples": [
+   "Sort the waste",
+   "Clasifica la basura",
+   "Is the yogurt cup plastic or metal?",
+   "Put the soda can in the metal bin",
+   "What is left on the belt?",
+   "Lay out new waste"
+  ]
+ }
+]
