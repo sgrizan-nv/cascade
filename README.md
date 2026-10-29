@@ -168,6 +168,9 @@ changes READY. Every chat-host tool call is logged to `runs/mcp_<pid>/server.log
 
 ## Quick start
 
+For the optional B601-RS/Astra plate experiment, request logs and desktop video,
+see the [experiment guide](docs/REBOT_ASTRA_EXPERIMENT.md).
+
 ```bash
 # SO-101 (5 DoF) on the mock stack; mock_small fits its 55 mm jaw
 uv run python -m cascade.apps.demo --arm so101_mock --camera mock_small --task "pick and place the red object"

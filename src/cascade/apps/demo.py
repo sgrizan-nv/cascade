@@ -2612,11 +2612,11 @@ def _make_detector(cfg, *, warm_up: bool = True):
         # extra_props on the camera profile (multi-prop scenes for the
         # memory tasks) become extra colour-keyed labels, so the mock
         # detector finds exactly the props the scene writer painted.
-        extra = [
+        extra = list(dcfg.get("extra_labels") or []) + [
             str(e.get("label") or f"{e.get('color', 'blue')} cube")
             for e in (cfg.camera.get("extra_props") or [])
         ]
-        return MockDetector(label=dcfg.get("label", "red cube"), extra_labels=extra,
+        return MockDetector(label=dcfg.get("label", "red cube"), extra_labels=list(dict.fromkeys(extra)),
                             instances=bool(dcfg.get("instances", False)))
     if dtype == "brain":
         return _make_brain_detector(cfg, dcfg, warm_up=warm_up)
