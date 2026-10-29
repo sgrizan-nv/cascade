@@ -29,8 +29,10 @@ THREADING. `mujoco.Renderer` binds an OpenGL context with `make_current()` in
 CameraStream calls `open()` from the thread that builds the rig and `_grab()`
 from its own pump thread, so the renderer is created LAZILY on the first grab
 -- i.e. on the pump thread that will use it for the rest of its life.
-`close()` runs on yet another thread; MuJoCo's `Renderer.close()` tolerates
-that (measured), but a render never crosses threads.
+`release_capture_resources()` frees the renderer on that pump thread before
+it exits. Although cross-thread close worked on some drivers, GLFW/GLX can
+segfault freeing the context from the joining thread. Ordinary `close()` then
+releases the shared world after the pump has joined.
 
 WORLD ATTACHMENT. The arm is built before the camera in `build_runtime`, but
 under the MCP server the arm is a LazyArm that materializes on the first
@@ -161,6 +163,20 @@ class MujocoCamera(CameraBase):
 
                 mujoco_world.release(self._world)
                 self._world = None
+
+    def release_capture_resources(self) -> None:
+        """Free the GL renderer on the stream thread that last used it.
+
+        Freeing its native context from the joining thread can segfault under
+        GLFW/GLX. The world stays attached until ordinary close().
+        """
+        with self._lock:
+            if self._renderer is not None:
+                if self._render_owner is not threading.current_thread():
+                    raise CameraError("MuJoCo renderer cleanup requires its capture thread")
+                self._renderer.close()
+                self._renderer = None
+                self._render_owner = None
 
     # ── frames ───────────────────────────────────────────────────────────
 

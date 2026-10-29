@@ -71,6 +71,7 @@ class CameraStream:
         self._fps_capture: tuple[dict, float] | None = None
         self._fps_capture_received: float | None = None
         self._last_error: str | None = None
+        self._capture_cleanup_error: Exception | None = None
         #: per producer clock (`freshness.producer_clock`): (its newest
         #: capture stamp, client receipt of that capture's first delivery)
         #: (`_note_first_receipt`); the FIRST_RECEIPT_CLOCKS latest clocks.
@@ -85,6 +86,7 @@ class CameraStream:
     def open(self) -> None:
         self._camera.open()
         self._stop = False
+        self._capture_cleanup_error = None
         self._thread = threading.Thread(
             target=self._loop, daemon=True, name=f"stream-{self.name}"
         )
@@ -105,6 +107,8 @@ class CameraStream:
         if self._thread is not None and timeout_s is not None:
             raise TimeoutError(f"stream-{self.name}: grab still in flight after {timeout_s:g} s; "
                                "camera left open")
+        if self._capture_cleanup_error is not None:
+            raise RuntimeError(f"stream-{self.name}: capture resource cleanup failed") from self._capture_cleanup_error
         self._camera.close()
 
     def warm_up(self, n: int = 10) -> None:
@@ -289,6 +293,18 @@ class CameraStream:
             _LOG.debug("camera %s pose unavailable at frame receipt: %s", self.name, e)
 
     def _loop(self) -> None:
+        try:
+            self._pump()
+        finally:
+            release = getattr(self._camera, "release_capture_resources", None)
+            if callable(release):
+                try:
+                    release()
+                except Exception as exc:
+                    self._capture_cleanup_error = exc
+                    _LOG.exception("camera %s capture resource cleanup failed", self.name)
+
+    def _pump(self) -> None:
         t_prev = time.monotonic()
         while not self._stop:
             t0 = time.monotonic()

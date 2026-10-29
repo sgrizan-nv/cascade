@@ -35,6 +35,13 @@ class CameraBase(abc.ABC):
     @abc.abstractmethod
     def close(self) -> None: ...
 
+    def release_capture_resources(self) -> None:
+        """Release thread-owned capture resources before a stream pump exits.
+
+        Device/world ownership remains with close(), after the pump is joined.
+        Backends without thread-affine resources need no additional cleanup.
+        """
+
     @abc.abstractmethod
     def _grab(self) -> Frame:
         """Fetch one frame or raise CameraError."""
