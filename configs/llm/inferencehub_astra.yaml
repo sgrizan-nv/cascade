@@ -1,0 +1,12 @@
+# Rafael Wiltz's Isaac Lab Astra testbed uses this InferenceHub endpoint/model.
+# Export NV_API_KEY locally, or use scripts/verify_inferencehub_astra.py
+# to read ~/.config/cascade/inferencehub_api_key without printing it.
+type: openai_compat
+base_url: https://inference-api.nvidia.com/v1
+model: openai/openai/gpt-6-astra
+api_key_env: NV_API_KEY
+supports_vision: true
+request_timeout_s: 180
+max_retries: 0
+extra_body:
+  reasoning_effort: medium

@@ -1,0 +1,18 @@
+# Rendered RGB-D, overhead at 0.9 m; prop offset from the home gripper.
+extends: mock
+type: mujoco
+mj_camera: scene_cam
+static_scene: false
+depth: true
+fps: 10
+fx: 500.0
+table_depth_m: 0.9
+box_px: [245, 205, 275, 235]
+box_height_m: 0.05
+extrinsics:
+  mode: eye_to_hand
+  T:
+    - [0.0, -1.0, 0.0, 0.28]
+    - [-1.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, -1.0, 0.9]
+    - [0.0, 0.0, 0.0, 1.0]

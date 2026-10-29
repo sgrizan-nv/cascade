@@ -409,6 +409,11 @@ class MujocoArm(ArmBase):
         self._cfg = cfg
         self.kin = kinematics
         self.n_joints = int(cfg.get("n_joints", 6))
+        # MJCF coordinates may be mirrored relative to Cascade's local q.
+        # Separate from joint_signs, which transforms the URDF kinematics.
+        self._mj_signs = np.asarray(cfg.get("mj_joint_signs", [1] * self.n_joints), dtype=float)
+        if self._mj_signs.shape != (self.n_joints,) or not np.all(np.isin(self._mj_signs, [-1, 1])):
+            raise ValueError("mj_joint_signs must contain one +1 or -1 per arm joint")
         self._mjcf = str(cfg.mjcf)
         # Optional: build a scene whose prop matches what the CAMERA renders.
         # `scene.xml` has no prop, so pairing it with a synthetic camera makes
@@ -480,6 +485,15 @@ class MujocoArm(ArmBase):
         if self._grip_joint:
             self._grip_joint = self._prefix + str(self._grip_joint)
             self._grip_act = self._prefix + str(self._grip_act)
+        # Additional coupled jaws with identical joint/control units. Keep
+        # their original actuators and equality constraints in the MJCF.
+        self._grip_followers = [
+            (prefix + str(f["joint"]), prefix + str(f["actuator"]))
+            for f in cfg.get("mj_gripper_followers", [])
+        ]
+        if self._grip_followers and not self._grip_joint:
+            raise ValueError("mj_gripper_followers requires mj_gripper_joint")
+        self._follower_indices = []
         self._substeps = max(1, int(cfg.get("substeps", 10)))
         # Profile `view:` is the default; CASCADE_MJ_VIEW=1|0 overrides it
         # per run. The one-click launcher sets it for sim runs: the banner
@@ -585,12 +599,20 @@ class MujocoArm(ArmBase):
                 raise RuntimeError(f"gripper joint {self._grip_joint!r} not in {path.name}")
             self._grip_qadr = int(self._model.jnt_qposadr[jid])
             self._grip_aidx = self._actuator_id(mj, str(self._grip_act))
+        self._follower_indices = []
+        for joint, actuator in self._grip_followers:
+            jid = mj.mj_name2id(self._model, mj.mjtObj.mjOBJ_JOINT, joint)
+            if jid < 0:
+                raise RuntimeError(f"gripper follower joint {joint!r} not in {path.name}")
+            self._follower_indices.append((int(self._model.jnt_qposadr[jid]),
+                                           self._actuator_id(mj, actuator)))
 
         self._ctrl = np.zeros(int(self._model.nu), dtype=float)
         # The actuator slots THIS arm owns. A sole owner pushes the whole
         # vector (unchanged behaviour: the skills that bind `_ctrl` may set
         # any slot); a rig member pushes only its own, see push_ctrl.
         own = list(self._aidx) + ([self._grip_aidx] if self._grip_aidx is not None else [])
+        own.extend(aid for _, aid in self._follower_indices)
         self._own_aidx = own if self._rig is not None else None
 
         # Start AT the home pose rather than the MJCF keyframe. Grasp IK is
@@ -600,10 +622,12 @@ class MujocoArm(ArmBase):
         home = self._cfg.get("home_q")
         with self._lock:
             if home is not None:
-                for adr, v in zip(self._qadr, np.asarray(home, dtype=float)):
+                for adr, v in zip(self._qadr, np.asarray(home, dtype=float) * self._mj_signs):
                     engine.set_qpos(adr, float(v))
             if self._grip_qadr is not None:
                 engine.set_qpos(self._grip_qadr, self._grip_open)
+            for adr, _ in self._follower_indices:
+                engine.set_qpos(adr, self._grip_open)
             engine.realize(view=self._view)
             self._hold_current()
             if self._cfg.get("mj_delivery_area") is not None:
@@ -657,6 +681,8 @@ class MujocoArm(ArmBase):
             qpos, qvel = self._engine.pull()
             q = np.array([qpos[a] for a in self._qadr], dtype=float)
             dq = np.array([qvel[a] for a in self._dadr], dtype=float)
+            q *= self._mj_signs
+            dq *= self._mj_signs
             grip = (float(qpos[self._grip_qadr])
                     if self._grip_qadr is not None else 0.0)
         return RobotState(q=q, dq=dq, gripper_pos=grip, t=time.monotonic())
@@ -673,6 +699,8 @@ class MujocoArm(ArmBase):
             self._ctrl[aid] = qpos[adr]
         if self._grip_aidx is not None and self._grip_qadr is not None:
             self._ctrl[self._grip_aidx] = self._grip_ctrl(qpos[self._grip_qadr])
+        for adr, aid in self._follower_indices:
+            self._ctrl[aid] = self._grip_ctrl(qpos[adr])
         self._engine.push_ctrl(self._ctrl, self._own_aidx)
 
     def _grip_ctrl(self, pos: float) -> float:
@@ -686,7 +714,7 @@ class MujocoArm(ArmBase):
             return
         q = np.asarray(q, dtype=float).reshape(-1)
         with self._lock:
-            for aid, v in zip(self._aidx, q[: self.n_joints]):
+            for aid, v in zip(self._aidx, q[: self.n_joints] * self._mj_signs):
                 self._ctrl[aid] = float(v)
             self._engine.push_ctrl(self._ctrl, self._own_aidx)
             self._engine.step(self._substeps)
@@ -696,6 +724,8 @@ class MujocoArm(ArmBase):
             return
         with self._lock:
             self._ctrl[self._grip_aidx] = self._grip_ctrl(pos)
+            for _, aid in self._follower_indices:
+                self._ctrl[aid] = self._grip_ctrl(pos)
             self._engine.push_ctrl(self._ctrl, self._own_aidx)
             # Unlike a joint move, nothing else is stepping physics while the
             # jaws travel, so the command has to carry its own settle time or

@@ -174,6 +174,9 @@ uv run python -m cascade.apps.demo --arm so101_mock --camera mock_small --task "
 # real physics, no robot or GPU: postcondition channel = physics; add mujoco_wrist for a wrist camera
 uv run python scripts/fetch_robot_assets.py so101
 uv run --extra sim python -m cascade.apps.demo --arm so101_mujoco --cameras mujoco_scene,mujoco_wrist --interactive
+# B601-RS in MuJoCo, using the same runtime and tools (NV_API_KEY must be set for Astra)
+uv run python scripts/fetch_robot_assets.py rebot_rs
+uv run --extra sim --extra llm python -m cascade.apps.demo --arm rebot_rs_mujoco --camera rebot_mujoco_scene --llm inferencehub_astra --task "Pick up the red cube and hold it above the table."
 # two arms; another robot; any ROS2 robot (sourced ROS2 env + ros2_control bringup)
 uv run python -m cascade.apps.demo --arms so101_left,so101_right --camera mock_small --interactive
 uv run python -m cascade.apps.demo --arm piper_mock --camera mock_small --task "pick and place the red object"

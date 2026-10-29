@@ -1,0 +1,23 @@
+# B601-RS simulation using the unchanged Menagerie asset.
+# Fetch: python scripts/fetch_robot_assets.py rebot_rs
+# Inherit the RS kinematic mock, not the hardware startup/map requirements.
+extends: mock
+type: mujoco
+mjcf: ${assets}/mjcf/rebot_rs/scene.xml
+mj_prop_from_camera: true
+mj_joints: [joint1, joint2, joint3, joint4, joint5, joint6]
+mj_actuators: [joint1, joint2, joint3, joint4, joint5, joint6]
+mj_joint_signs: [-1, -1, -1, -1, -1, -1]
+mj_gripper_joint: joint_left
+mj_gripper_actuator: joint_left
+mj_gripper_followers:
+  - {joint: joint_right, actuator: joint_right}
+# MJCF slider meters; hardware motor radians are not interchangeable.
+gripper:
+  open_pos: 0.05
+  closed_pos: 0.0
+  max_width_m: 0.09
+substeps: 10
+settle_tol: 0.03
+settle_timeout_s: 4.0
+view: false
