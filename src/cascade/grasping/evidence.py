@@ -28,6 +28,7 @@ _ACTIVE: ContextVar[Attempt | None] = ContextVar("grasp_evidence", default=None)
 _MAX_EVENTS = 30000
 _MAX_ARRAY_BYTES = 64 * 1024 * 1024
 _SOURCE_FILES = (
+    "src/cascade/agent/effects.py",
     "src/cascade/grasping/evidence.py", "src/cascade/grasping/selector.py",
     "src/cascade/grasping/graspgenx_backend.py", "src/cascade/grasping/force.py",
     "src/cascade/skills/runtime.py", "src/cascade/memory/grasp_memory.py",

@@ -45,9 +45,21 @@ class _Kin:
 class _ArmGroup:
     def __init__(self):
         self.calls = []
+        self.joint_names = [f"joint{i}" for i in range(1, 7)]
+        group = self
 
-    def send_mit(self, *a, **kw):
-        self.calls.append(kw)
+        class Motor:
+            def __init__(self, index):
+                self.index = index
+
+            def send_mit(self, pos, vel, kp, kd, tau):
+                if self.index == 0:
+                    group.calls.append({"tau": [], "kp": [], "kd": [], "q": []})
+                for key, value in (("tau", tau), ("kp", kp), ("kd", kd), ("q", pos)):
+                    group.calls[-1][key].append(value)
+                assert vel == 0.
+
+        self._mm = {name: Motor(i) for i, name in enumerate(self.joint_names)}
 
 
 class _FakeArm:
@@ -77,13 +89,12 @@ def test_send_joint_target_passes_gravity_tau_when_enabled(monkeypatch):
     np.testing.assert_allclose(kw["tau"], [0.0, 3.3, 6.6, 2.0, 0.0, 0.0])
 
 
-def test_send_joint_target_omits_tau_when_disabled(monkeypatch):
-    """Disabled -> pure PD: send_mit is called without a tau kwarg, so the
-    SDK's zeros default applies (identical to the pre-feedforward call)."""
+def test_send_joint_target_zero_tau_when_disabled(monkeypatch):
+    """Disabled -> pure PD, with the same zeros as the SDK group default."""
     arm = _gc_arm(monkeypatch, enabled=False)
     arm.send_joint_target(np.zeros(6))
     (kw,) = arm._arm.arm.calls
-    assert "tau" not in kw
+    np.testing.assert_array_equal(kw["tau"], np.zeros(6))
 
 
 def test_stop_reasserts_hold_with_tau(monkeypatch):
@@ -122,7 +133,6 @@ def test_gravity_torque_sign_matches_reparameterization():
     import pinocchio as pin
 
     from cascade.control.kinematics import Kinematics
-    from cascade.control.usd_model import apply_joint_signs
 
     raw_model = pin.buildModelFromXML(URDF.read_text())
     raw_data = raw_model.createData()

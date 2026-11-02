@@ -103,6 +103,10 @@ def is_wrist_view(cfg) -> bool:
 def make_camera(cfg: Cfg) -> CameraBase:
     """Instantiate a camera backend from a camera profile config."""
     kind = cfg.type
+    if kind == "oak":
+        from .oak_camera import OakCamera
+
+        return OakCamera(cfg)
     if kind == "realsense":
         from .realsense_camera import RealSenseCamera
 
@@ -133,4 +137,4 @@ def make_camera(cfg: Cfg) -> CameraBase:
 
         return OrbbecCamera(cfg)
     raise ValueError(
-        f"unknown camera type {kind!r} (realsense|uvc|mock|isaac|mujoco|ovrtx|orbbec)")
+        f"unknown camera type {kind!r} (realsense|uvc|mock|isaac|mujoco|ovrtx|orbbec|oak)")

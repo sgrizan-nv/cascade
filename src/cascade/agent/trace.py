@@ -10,6 +10,8 @@ Per run directory:
                     `keyframe_after_wrists`: `{stream: path}`, null when the
                     rig has none -- the judge then repeats the front image)
     summary.txt   - final human-readable outcome
+    safety_evidence/ - retained depth/mask inputs linked from clearance reports;
+                    written after the skill returns, never from the motor loop
     run.json      - the run's manifest (`stamp`, written once at build): the
                     ASPIRE note library the run read (`library_sha`, where it
                     is and why it could not be read), the notes it served, its
@@ -121,6 +123,21 @@ class TraceLogger:
         name = f"keyframes/{self._step:04d}_{tag}.jpg"
         cv2.imwrite(str(self.run_dir / name), rgb)
         return name
+
+    def save_depth_evidence(self, evidence: dict) -> dict:
+        """Persist an already-captured safety input; no hardware access."""
+        if "error" in evidence:
+            return {"error": evidence["error"]}
+        name = f"safety_evidence/{uuid.uuid4().hex}.npz"
+        path = self.run_dir / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            np.savez_compressed(path, **evidence["arrays"],
+                                metadata_json=np.asarray(json.dumps(_jsonable(evidence["metadata"]))))
+        except Exception:
+            path.unlink(missing_ok=True)
+            raise
+        return {"path": name, **evidence["metadata"]}
 
     def record(
         self,

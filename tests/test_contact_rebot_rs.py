@@ -99,18 +99,24 @@ def sdk_arm(plant):
     names = [f"joint{i}" for i in range(1, 7)]
     sends = []
 
-    def send_mit(q, **kw):
-        plant.advance(0.001)
-        plant.target = np.asarray(q, float).copy()
-        sends.append(plant.target.copy())
-    group = types.SimpleNamespace(send_mit=send_mit, joint_names=names,
-                                  _mm={n: Motor(plant, i) for i, n in enumerate(names)})
+    class CommandMotor(Motor):
+        def send_mit(self, pos, vel, kp, kd, tau):
+            # Preserve the plant's one-millisecond cost per complete group,
+            # now through the actual per-motor MotorBridge call boundary.
+            if self.j == 0:
+                plant.advance(0.001)
+            plant.target[self.j] = pos
+            if self.j == 5:
+                sends.append(plant.target.copy())
+
+    group = types.SimpleNamespace(joint_names=names,
+                                  _mm={n: CommandMotor(plant, i) for i, n in enumerate(names)})
     arm._arm = types.SimpleNamespace(arm=group, has_gripper=False)
     arm._stopped = False
     arm._read_failures = 0
     arm._last_q, arm._last_q_t = plant.q.copy(), plant.t
     arm._last_cmd_q = arm._last_cmd_t = None
-    arm._mit_kp = arm._mit_kd = None
+    arm._mit_kp, arm._mit_kd = KP.copy(), KD.copy()
     arm.settle_timeout_s = 2.0
     return arm, sends
 

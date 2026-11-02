@@ -283,6 +283,24 @@ voxels before touching any margin (`tests/test_clearance_snapshots.py`);
 only on whole-mm voxel lattices (the 1 cm default); it was checked on an EDT test bridge, never yet
 on real nvblox, and it measures `old` and certified L4, not L1/L2 (spec §12, P-A6).
 
+For depth-backed maps, `depth_evidence` links a `safety_evidence/*.npz` saved by
+the skill trace after the call returns. It contains the latest depth input
+associated with the report's committed map, the excluded-pixel mask, matching
+intrinsics and camera transform, full RGB with its own intrinsics, and JSON
+metadata (frame/capture times, depth stride, capture metadata and mesh-mask
+input states). Mask joints can be commanded targets; they are explicitly not
+claimed as independent feedback. Depth is retained before zeroing excluded
+pixels. The report pins that snapshot even if the watcher commits newer frames
+before logging. No disk writes or extra device reads occur in the safety check.
+Retention is bounded by the existing report cap; drained/evicted reports release
+their frames. Missing depth and write errors are reported explicitly.
+
+This is the **latest integrated input**, not complete TSDF history or proof that
+every reported voxel originated in that frame. The existing `snapshot_newer_map`
+qualification still applies. Legacy cloud-only integration has no depth snapshot.
+Use the drift monitor's separate `extrinsics_evidence` snapshot for its measured
+joint/depth check; the two captures are not necessarily simultaneous.
+
 Offline end to end (`tests/test_rebot_occupancy_live.py`): with the capsule mask home is refused
 by the arm's own jaws; with the mesh mask rest, home and every step between are admitted, and the
 incident's side grasp is refused at preflight. Limitations: only `map_depth` cameras feed the map

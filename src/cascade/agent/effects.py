@@ -174,6 +174,11 @@ class PostconditionChecker:
         ``snapshot()`` for release skills only, with the jaw width: "the
         object was released" needs something held before the call and the
         jaw measured wider after it. None (or no hook) = unknown.
+    ``holding_pose(label, after_t) -> dict``
+        Fresh measured camera position for grasp snapshots and verification:
+        position (world frame), observed_t (client monotonic), camera identity,
+        and optional evidence metadata. Physics still takes precedence. When
+        provided, unavailable camera evidence never falls back to beliefs.
     """
 
     def __init__(
@@ -190,6 +195,7 @@ class PostconditionChecker:
         holding: Callable[[], bool | None] | None = None,
         table_z_fn: Callable[[], float] | None = None,
         air_grasp_frac_fn: Callable[[], float] | None = None,
+        holding_pose: Callable[[str, float], dict] | None = None,
     ):
         self._object_pose = object_pose
         self._belief_pose = belief_pose
@@ -209,6 +215,9 @@ class PostconditionChecker:
         self._placement_check = placement_check
         self._actuation = actuation
         self._holding = holding
+        # A measured, post-barrier camera pose for grasp verification. When
+        # wired, a missing observation must never fall back to cached beliefs.
+        self._holding_pose_reader = holding_pose
         self.history: list[Postcondition] = []
 
     @property
@@ -251,7 +260,11 @@ class PostconditionChecker:
                 snap["holding"] = held
         if not label:
             return snap
-        pose, channel = self._best_pose(label)
+        if skill == "grasp_object" and self._holding_pose_reader is not None:
+            pose, channel, observation = self._holding_pose(label)
+            snap.update(label=label, observation=observation)
+        else:
+            pose, channel = self._best_pose(label)
         if pose is None:
             return snap
         snap.update({"label": label, "pose": list(pose), "channel": channel})
@@ -415,6 +428,30 @@ class PostconditionChecker:
                 return [float(v) for v in pose[:3]], channel
         return None, ""
 
+    def _holding_pose(self, label):
+        """Prefer physics; otherwise require a new camera measurement."""
+        if self._object_pose is not None:
+            try:
+                pose = self._object_pose(label)
+                if pose is not None and len(pose) >= 3:
+                    values = [float(v) for v in pose[:3]]
+                    if all(math.isfinite(v) for v in values):
+                        return values, "physics", {}
+            except Exception:
+                pass
+        started = time.monotonic()
+        try:
+            observation = self._holding_pose_reader(label, started)
+            pose = [float(v) for v in observation["position"]]
+            stamp = float(observation["observed_t"])
+            if (len(pose) != 3 or not all(math.isfinite(v) for v in pose)
+                    or not math.isfinite(stamp) or not started <= stamp <= time.monotonic()
+                    or not observation.get("camera")):
+                raise ValueError("missing, stale or invalid grasp observation")
+            return pose, "perception", observation
+        except Exception as exc:
+            return None, "perception", {"error": f"{type(exc).__name__}: {exc}"}
+
     def _refute_if_lost(self, pc, label: str) -> bool:
         """REFUTE when the physics channel measures ``label`` outside the scene.
 
@@ -488,7 +525,9 @@ class PostconditionChecker:
         it with whatever the camera still sees (caught by
         ``test_grasp_and_place_happy_path``, where the belief snapped back to
         the mock camera's fixed detection instead of the place target).
-        The ``perception_loop`` WorldWatcher already keeps beliefs warm at
+        Grasp verification uses the optional timestamped ``holding_pose``
+        reader instead: it measures without fusing the held object into memory.
+        The ``perception_loop`` WorldWatcher otherwise keeps beliefs warm at
         3 Hz, and in sim the truth channel needs no perception at all, so the
         fresh pass buys nothing and costs correctness.
         """
@@ -568,7 +607,21 @@ class PostconditionChecker:
             return
         if self._refute_if_lost(pc, label):
             return
-        pose, channel = self._best_pose(label) if label else (None, "")
+        observation = None
+        if label and self._holding_pose_reader is not None:
+            pose, channel, observation = self._holding_pose(label)
+            pc.measured = {"before_observation": before.get("observation"),
+                           "after_observation": observation, "gripper_frac": frac}
+            start = self._comparable_start(before, channel)
+            if (pose is None or start is None
+                    or (channel == "perception" and
+                        (before.get("channel") != "perception"
+                         or before.get("observation", {}).get("camera") != observation.get("camera")))):
+                pc.status, pc.channel = UNVERIFIED, channel
+                pc.evidence = "no comparable fresh before/after object observations; the lift is unconfirmed"
+                return
+        else:
+            pose, channel = self._best_pose(label) if label else (None, "")
         if pose is None:
             pc.status, pc.channel = UNVERIFIED, "gripper"
             # The measured jaw, never "held": the skill may have re-opened
@@ -584,8 +637,8 @@ class PostconditionChecker:
         start = self._comparable_start(before, channel)
         z0 = float((start or [0, 0, self.table_z])[2])
         rise = pose[2] - z0
-        pc.measured = {"z_before": round(z0, 4), "z_after": round(pose[2], 4),
-                       "rise_m": round(rise, 4), "gripper_frac": frac}
+        pc.measured.update({"z_before": round(z0, 4), "z_after": round(pose[2], 4),
+                            "rise_m": round(rise, 4), "gripper_frac": frac})
         pc.channel = channel
         if rise >= LIFT_EPS_M:
             pc.status = CONFIRMED

@@ -105,11 +105,18 @@ class _FakeGroup:
     def __init__(self):
         self.sent = []
         self.gains = []
-
-    def send_mit(self, q, kp=None, kd=None):
-        self.sent.append(np.asarray(q, dtype=float).copy())
-        self.gains.append((None if kp is None else np.asarray(kp, dtype=float).copy(),
-                           None if kd is None else np.asarray(kd, dtype=float).copy()))
+        from types import SimpleNamespace
+        self.joint_names = [f"joint{i}" for i in range(1, 7)]
+        self._mm = {}
+        for i, name in enumerate(self.joint_names):
+            def send(pos, vel, kp, kd, tau, index=i):
+                if index == 0:
+                    self.sent.append(np.zeros(6))
+                    self.gains.append((np.zeros(6), np.zeros(6)))
+                self.sent[-1][index] = pos
+                self.gains[-1][0][index] = kp
+                self.gains[-1][1][index] = kd
+            self._mm[name] = SimpleNamespace(send_mit=send)
 
 
 class _FakeSdkArm:

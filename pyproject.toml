@@ -14,6 +14,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# OAK stereo RGB-D camera. Lazy SDK import; no effect on mock/minimal installs.
+camera-oak = ["depthai>=3.11,<4"]
 # Perception extras: SAM masks for the brain detector's boxes (ultralytics) and the
 # client that asks the brain for names and boxes (openai, same constraint as `llm`).
 # torch comes from the host env on purpose: the right build is per-platform (CUDA,

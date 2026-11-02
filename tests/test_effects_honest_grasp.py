@@ -20,6 +20,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import json
+import time
 from functools import partial
 
 import numpy as np
@@ -164,6 +165,31 @@ def test_real_held_grasp_is_judged_as_before(mock_runtime):
     # and the evidence states the measured jaw ("held" is not measured).
     assert pc["status"] == UNVERIFIED and pc["channel"] == "gripper", pc
     assert pc["evidence"].startswith("jaw at 0.500 but red cube could not be re-located"), pc
+
+
+@pytest.mark.parametrize("after_z,status", [(.10, CONFIRMED), (.04, REFUTED), (None, UNVERIFIED)])
+def test_live_grasp_dispatch_uses_fresh_observer_not_cached_belief(mock_runtime, monkeypatch, after_z, status):
+    runtime, arm = mock_runtime
+    _seen(runtime)
+    arm.object_stop_frac = .5
+    runtime.cfg.camera._data["static_scene"] = False
+    calls = []
+
+    def observe(label, after_t):
+        calls.append((label, after_t))
+        z = .04 if len(calls) == 1 else after_z
+        if z is None:
+            raise RuntimeError("box occluded")
+        return {"position": [.3, 0, z], "observed_t": time.monotonic(), "camera": "test_live"}
+
+    monkeypatch.setattr(runtime, "_observe_holding_pose", observe)
+    runtime.attach_verifier()
+    result = runtime.execute("grasp_object", {"label": "red cube"})
+    assert len(calls) == 2
+    assert result["postcondition"]["status"] == status
+    assert result["postcondition"]["channel"] == "perception"
+    assert runtime.held_object == "red cube"  # verification never releases/retries
+    assert result["verified"] is (status == CONFIRMED)
 
 
 # ── the checker on its own: the actuation hook decides the wording ─────────

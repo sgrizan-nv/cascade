@@ -62,6 +62,70 @@ def test_shipped_camera_profiles_validate():
         assert c.enabled is False
 
 
+@pytest.mark.parametrize("disk_failure", [False, True])
+def test_flag_retains_exact_sample_once_without_delaying_invalidation(tmp_path, monkeypatch,
+                                                                     disk_failure):
+    from types import SimpleNamespace
+
+    import cascade.perception.drift_monitor as dm
+    from cascade.calibration.markerless import OffsetCheck
+    from cascade.perception.grounding import Extrinsics
+    from cascade.types import Frame
+
+    q = np.arange(6, dtype=float) / 10
+    frame = Frame(rgb=np.zeros((8, 10, 3), np.uint8), depth_m=np.ones((8, 10), np.float32),
+                  K=np.eye(3), depth_source="sensor", t=10.0, observed_t=9.99)
+    watched = SimpleNamespace(extrinsics=Extrinsics("eye_to_hand", T=np.eye(4)),
+                              fuse=True, map_depth=True,
+                              stream=SimpleNamespace(latest=lambda: frame))
+    now = [10.0]
+    reads = []
+    lines = []
+    surface = SimpleNamespace(kin=SimpleNamespace(fk=lambda q: np.eye(4)))
+    monitor = dm.ExtrinsicDriftMonitor(
+        "scene", watched, surface_fn=lambda: surface,
+        q_fn=lambda: (reads.append(1), q.copy())[1],
+        config=DriftMonitorConfig(enabled=True, consecutive=1), run_dir=tmp_path,
+        log=lines.append, clock=lambda: now[0], settle_s=0.0)
+    result = OffsetCheck(True, "ok", offset_m=0.02, offset_deg=1.0,
+                         T_estimate=np.eye(4))
+    monkeypatch.setattr(dm, "measure_offset", lambda *a, **k: result)
+    save = np.savez_compressed
+
+    def checked_save(*args, **kwargs):
+        assert not watched.extrinsics.calibrated
+        assert not watched.fuse and not watched.map_depth
+        if disk_failure:
+            raise OSError("disk full")
+        save(*args, **kwargs)
+
+    monkeypatch.setattr(dm.np, "savez_compressed", checked_save)
+    assert monitor.check_once().outcome == "drift"
+    # A later check must neither overwrite the triggering pose nor re-enable fusion.
+    q[:] += 0.1
+    now[0] += 1
+    frame.t = now[0]
+    assert monitor.check_once().outcome == "drift"
+    assert len(reads) == 4  # existing before/after reads only
+    assert not watched.fuse and not watched.extrinsics.calibrated
+    paths = list((tmp_path / "extrinsics_evidence").glob("*.npz"))
+    if disk_failure:
+        assert paths == []
+        assert any("could not save drift evidence" in line for line in lines)
+    else:
+        assert len(paths) == 1
+        with np.load(paths[0], allow_pickle=False) as evidence:
+            np.testing.assert_allclose(evidence["q"], np.arange(6) / 10)
+            np.testing.assert_array_equal(evidence["depth_m"], frame.depth_m)
+            np.testing.assert_array_equal(evidence["rgb"], frame.rgb)
+            assert evidence["frame_t"] == 10.0
+            assert evidence["observed_t"] == 9.99
+            np.testing.assert_array_equal(evidence["T_reference"], np.eye(4))
+        rows = [json.loads(x) for x in (tmp_path / "extrinsics_drift.jsonl").read_text().splitlines()]
+        row = next(r for r in rows if r["event"] == "drift_evidence_saved")
+        assert tmp_path / row["path"] == paths[0]
+
+
 # ── the monitor on a synthetic rig ───────────────────────────────────────
 
 DOWN = np.array([[0.0, -1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, -1.0]])

@@ -30,6 +30,10 @@ SocketCAN can0 @ 1 Mbps), but with the rig-verified fixes this SDK lacks:
   starts the SDK's RebotArmEndPose 500 Hz loop, whose _loop_cb re-sends its
   own _q_target every 2 ms and so overwrites any direct send_mit (WRC rig
   finding #2) -- tests/test_rebot_rs_sdk_loop.py pins that.
+- Motor commands use the SDK's existing MotorBridge handles directly:
+  JointGroup.send_mit/enable suppress transport failures. Failed sends name
+  the joint, latch streaming stopped and attempt the previous hold without
+  disabling torque. Hold failure is reported, never treated as success.
 
 Operational notes (verified on this rig 2026-07):
 - bring the bus up first: sudo ip link set can0 up type can bitrate 1000000
@@ -49,6 +53,7 @@ import time
 import numpy as np
 
 from ..config import Cfg
+from ..sensing.alignment import SampleBuffer
 from ..types import RobotState
 from . import arm_hold
 from .arm_base import ArmBase
@@ -67,6 +72,10 @@ MECH_POS = 0x7019
 MECH_VEL = 0x701A
 
 
+class MotorCommandError(RuntimeError):
+    """A MotorBridge command failed; no motor acknowledgement is implied."""
+
+
 class RebotRSArm(ArmBase):
     def __init__(self, cfg: Cfg):
         self._cfg = cfg
@@ -81,6 +90,7 @@ class RebotRSArm(ArmBase):
         self._stopped = False
         self._last_q = np.zeros(self.n_joints)
         self._last_q_t: float | None = None   # when _last_q was read (None: never)
+        self._mask_targets = SampleBuffer(128)
         self._mit_kp = None
         self._mit_kd = None
         self.settle_tol = float(cfg.get("settle_tol", 0.05))
@@ -238,9 +248,6 @@ class RebotRSArm(ArmBase):
         # SDK-canonical order: set modes on ALL groups first, then enable.
         # JointGroup.enable() is controller-wide (enable_all), so the gripper
         # motor powers up together with the arm and must already be in MIT.
-        grp.mode_mit()
-        if arm.has_gripper:
-            arm.gripper.mode_mit()
         # Latched RobStride faults survive across sessions and the SDK's
         # enable does not clear them; a faulted motor silently ignores MIT
         # commands (WRC rig finding #1). The clear is a type-4 stop frame, so
@@ -248,37 +255,63 @@ class RebotRSArm(ArmBase):
         # bus, gripper included. A clear that keeps failing aborts connect
         # before anything is enabled and releases the bus.
         try:
+            if not grp.mode_mit():
+                raise MotorCommandError("arm MIT mode setup failed; enable refused")
+            if arm.has_gripper and not arm.gripper.mode_mit():
+                raise MotorCommandError("gripper MIT mode setup failed; enable refused")
             clear_motor_faults(sorted(arm._motor_map.items()))
             # Where the arm rests, vetted BEFORE torque: a reading that cannot
             # be a position (rig 2026-10-10: +2.3e18) must stop the connect
             # here, not become the first pose a planner streams from.
-            self._read_positions(grp)
+            q = self._read_positions(grp)
+            # Prepare every fallible model/read and preload the measured
+            # setpoints BEFORE enable_all (which also enables the gripper).
+            # Otherwise a motor may reuse a target from a previous session.
+            self._arm = arm
+            self._gc_kin = None
+            if self._gc_enabled:
+                from .kinematics import Kinematics
+
+                self._gc_kin = Kinematics(
+                    model_path=self._cfg.get("model"),
+                    ee_frame=self._cfg.get("ee_frame", "gripper_end"),
+                    n_controlled=self.n_joints,
+                    joint_signs=self._cfg.get("joint_signs"),
+                )
+            grip_raw = self._gripper_raw() if arm.has_gripper else None
+            self._grip_guard.invalidate("connected: the gripper motor's turn count is unknown")
+            self._send_mit(q)
+            if grip_raw is not None:
+                self._grip_guard.hold_raw(grip_raw, self._grip_kp * 0.5)
         except Exception:
             try:
                 arm.disconnect()
             except Exception:
                 pass
+            self._arm = None
             raise
-        grp.enable()
-        self._arm = arm
         self._stopped = False
-        self._grip_guard.invalidate("connected: the gripper motor's turn count is unknown")
         self._read_failures = 0
-        self._last_q = self._read_positions()
+        self._last_q = q.copy()
         self._last_q_t = time.monotonic()
-        self._last_cmd_q: np.ndarray | None = None
-        self._last_cmd_t: float | None = None
-        if self._gc_enabled:
-            from .kinematics import Kinematics
-
-            # Same model the safety/grasp layers use, with joint_signs baked so
-            # gravity_torque() returns motor-convention torque directly.
-            self._gc_kin = Kinematics(
-                model_path=self._cfg.get("model"),
-                ee_frame=self._cfg.get("ee_frame", "gripper_end"),
-                n_controlled=self.n_joints,
-                joint_signs=self._cfg.get("joint_signs"),
-            )
+        self._mask_targets = SampleBuffer(128)  # a new connection is a new history
+        self._last_cmd_q = q.copy()
+        self._last_cmd_t = time.monotonic()
+        self._mask_targets.add(self._last_cmd_t, q.copy())
+        try:
+            # JointGroup.enable() prints and suppresses CallError. Use the
+            # same existing controllers directly so a partial enable is visible.
+            for vendor, controller in arm._ctrl_map.items():
+                try:
+                    controller.enable_all()
+                except Exception as exc:
+                    raise MotorCommandError(f"{vendor} enable_all failed: {exc}") from exc
+        except BaseException:
+            # An enable can fail part way through all seven motors. Never
+            # follow it with a disconnect/torque cut or permit blind reconnect.
+            arm_hold.remember(self.hold_key, arm="arm", source="rebot_rs.connect",
+                              reason="enable interrupted; one or more motors may be holding")
+            raise
 
     def disconnect(self) -> None:
         if self._arm is not None:
@@ -391,7 +424,7 @@ class RebotRSArm(ArmBase):
 
     def _gripper_send_raw(self, pos: float, kp: float) -> None:
         with self._lock:
-            self._arm.gripper.send_mit(
+            self._send_group_mit(self._arm.gripper,
                 np.array([pos]), kp=np.array([kp]), kd=np.array([self._grip_kd])
             )
 
@@ -404,12 +437,50 @@ class RebotRSArm(ArmBase):
             return
         q = np.asarray(q, dtype=float).reshape(-1)[: self.n_joints]
         with self._lock:
-            self._send_mit(q)
+            try:
+                self._send_mit(q)
+            except MotorCommandError as exc:
+                self._stopped = True
+                # A group may have transmitted only some frames. Reassert the
+                # previous completed target on ALL motors, never torque off.
+                if self._last_cmd_q is not None:
+                    try:
+                        self._send_mit(self._last_cmd_q)
+                    except Exception as hold_exc:
+                        raise MotorCommandError(
+                            f"{exc}; recovery hold also failed: {hold_exc}"
+                        ) from exc
+                raise
         self._last_cmd_q = q.copy()
         self._last_cmd_t = time.monotonic()
+        self._mask_targets.add(self._last_cmd_t, q.copy())
 
     #: a joint target newer than this means a stream is sending (50 Hz = 20 ms)
     STREAM_ACTIVE_S = 0.1
+
+    def body_mask_state_at(self, capture_t: float) -> RobotState:
+        """Match the existing streaming-target proxy to the image's time.
+
+        This is target history, NOT measured feedback. It retains the standard
+        tracked-target masking policy without adding CAN reads to the stream.
+        A commanded target is held until superseded, including the idle gap
+        before a stream and its abort/settle tail. Select the target in effect
+        at capture, never a later target or an interpolated measured pose.
+        Missing retained history still refuses the frame. Camera/map freshness
+        gates continue to bound the IMAGE's age independently.
+        Idle images keep the existing measured-state path.
+        """
+        capture_t = float(capture_t)
+        if not np.isfinite(capture_t):
+            raise ValueError("body mask capture time must be finite")
+        last = getattr(self, "_last_cmd_t", None)
+        if last is not None and capture_t <= last + self.STREAM_ACTIVE_S:
+            held = self._mask_targets.at_or_before(capture_t)
+            if held is None:
+                raise RuntimeError("No streaming target retained at/before depth capture")
+            q, issued_t = held
+            return RobotState(q=q.copy(), gripper_valid=False, t=issued_t)
+        return self.get_state()
 
     def body_mask_q(self) -> np.ndarray:
         """Joint pose for masking the robot out of depth images.
@@ -443,16 +514,37 @@ class RebotRSArm(ArmBase):
             return RobotState(q=q.copy(), gripper_pos=0.0, gripper_valid=False, t=time.monotonic())
         return self.get_state()
 
+    @staticmethod
+    def _send_group_mit(group, q, *, kp, kd, tau=None):
+        """Use existing MotorBridge handles; SDK group sends swallow errors.
+
+        Attempt every motor so a hold still reaches healthy motors. Report all
+        failures together. Successful sends prove host transmission, not motion.
+        """
+        names = group.joint_names
+        vectors = [np.asarray(v, dtype=float) for v in
+                   (q, kp, kd, np.zeros(len(names)) if tau is None else tau)]
+        if any(v.shape != (len(names),) or not np.isfinite(v).all() for v in vectors):
+            raise ValueError("MIT command requires finite vectors matching the SDK joint order")
+        failures = []
+        first = None
+        for i, name in enumerate(names):
+            pos, p, d, torque = (float(v[i]) for v in vectors)
+            try:
+                group._mm[name].send_mit(pos, 0.0, p, d, torque)
+            except Exception as exc:
+                if first is None:
+                    first = exc
+                failures.append(f"{name}: {type(exc).__name__}: {exc}")
+        if failures:
+            raise MotorCommandError("MIT send failed: " + "; ".join(failures)) from first
+
     def _send_mit(self, q: np.ndarray) -> None:
-        """Send one arm MIT command, adding the gravity feedforward when
-        enabled. The pure-PD path (no gravity comp) omits `tau` entirely so
-        the SDK's zeros default applies and the call is byte-identical to the
-        pre-feedforward behavior."""
+        """Same MIT gains/zero velocity/feedforward through strict sends."""
+        tau = None
         if self._gc_kin is not None:
             tau = self._gc_kin.gravity_torque(q) * self._gc_tau_scale
-            self._arm.arm.send_mit(q, kp=self._mit_kp, kd=self._mit_kd, tau=tau)
-        else:
-            self._arm.arm.send_mit(q, kp=self._mit_kp, kd=self._mit_kd)
+        self._send_group_mit(self._arm.arm, q, kp=self._mit_kp, kd=self._mit_kd, tau=tau)
 
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
         if self._arm is None or not self._arm.has_gripper or self._stopped:
@@ -617,13 +709,9 @@ class RebotRSArm(ArmBase):
         make a loaded arm free-fall); use hard_estop() for that."""
         self._stopped = True
         if self._arm is not None and self._last_cmd_q is not None:
-            try:
-                with self._lock:
-                    # Re-assert the hold with the same gravity feedforward, so
-                    # the frozen pose does not droop once the stream stops.
-                    self._send_mit(self._last_cmd_q)
-            except Exception:
-                pass
+            with self._lock:
+                # Report failure to the caller; a failed hold is not success.
+                self._send_mit(self._last_cmd_q)
 
     def hard_estop(self) -> None:
         """Torque-off every motor. The arm WILL fall under gravity."""

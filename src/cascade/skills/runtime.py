@@ -2068,7 +2068,67 @@ class SkillRuntime:
             placement_check=self._verify_configured_placement,
             actuation=self._actuation_counts,
             holding=self._jaws_may_hold,
+            holding_pose=(None if self.cfg.camera.get("static_scene", False)
+                          else self._observe_holding_pose),
         )
+
+    def _observe_holding_pose(self, label: str, after_t: float) -> dict:
+        """Read-only grasp evidence using existing fresh, memory-free localization.
+
+        This does not fuse the held object into world memory or infer its pose
+        from the commanded TCP. Raw observations use the existing opt-in recorder.
+        """
+        directory = os.environ.get("CASCADE_GRASP_EVIDENCE_DIR", "").strip()
+        recorder = grasp_evidence.Attempt(os.path.join(directory, "verification")) if directory else None
+        frame = fix = None
+        try:
+            self.observe_fresh()
+            frame, fix = self._localize(label, memory=False)
+            stamp = observed_at(frame)
+            if not np.isfinite(stamp) or stamp < after_t:
+                raise SkillError("grasp verification frame predates its observation barrier")
+            if frame.depth_source != "sensor":
+                raise SkillError("grasp verification requires measured depth, not inferred object height")
+            camera = self._localized_camera()
+            if camera is None:
+                raise SkillError("grasp verification localization lacks camera provenance")
+            report = {
+                "position": np.asarray(self._to_world(fix.position), float).tolist(),
+                "observed_t": stamp, "requested_after_t": after_t,
+                "frame_id": frame.frame_id,
+                "camera": str(getattr(camera, "name", None) or self.cfg.camera.get("name", "primary")),
+                "label": label, "detection_label": fix.detection.label,
+                "capture": frame.capture,
+            }
+            if recorder is not None:
+                report["receipt"] = str(recorder.directory / f"{recorder.id}.json")
+                recorder.record("holding_observation", report)
+            return report
+        except Exception as exc:
+            if recorder is not None:
+                recorder.record("holding_observation_unavailable", {"label": label, "error": str(exc),
+                                                                    "requested_after_t": after_t})
+            raise
+        finally:
+            if recorder is not None:
+                try:
+                    if frame is not None:
+                        recorder.array("rgb_bgr", frame.rgb)
+                        if frame.depth_m is not None:
+                            recorder.array("depth_m", frame.depth_m)
+                        recorder.array("K", frame.K)
+                        if frame.T_base_cam is not None:
+                            recorder.array("T_base_cam", frame.T_base_cam)
+                    if fix is not None:
+                        recorder.array("points_base_m", fix.points)
+                        if fix.detection.mask is not None:
+                            recorder.array("target_mask", fix.detection.mask)
+                except Exception as exc:
+                    recorder.error("verification_arrays", exc)
+                try:
+                    recorder.finish()
+                except Exception as exc:
+                    logger.warning("Could not save grasp verification evidence: %s", exc)
 
     def _jaws_may_hold(self) -> bool:
         """The verifier's pre-call holding state: an object is held, or a
@@ -3317,6 +3377,12 @@ class SkillRuntime:
         contact_reports = [r for h in contact_harnesses for r in h.drain_contact_reports()]
         if contact_reports:
             trace_context["contact_monitor"] = contact_reports
+        writer = getattr(self.trace, "save_depth_evidence", None)
+        if callable(writer):
+            for h in clearance_harnesses:
+                save = getattr(h, "save_clearance_evidence", None)
+                if callable(save):
+                    save(writer)
         clearance_reports = [r for h in clearance_harnesses for r in h.drain_clearance_reports()]
         if clearance_reports:
             trace_context["clearance"] = clearance_reports

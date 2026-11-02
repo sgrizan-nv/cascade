@@ -305,7 +305,8 @@ class SafetyHarness:
     approved_commands: int = 0
 
     def __init__(self, limits: SafetyLimits, kinematics=None, occupancy=None,
-                 base_pose=None, tool_volume=None, arm_name: str | None = None):
+                 base_pose=None, tool_volume=None, arm_name: str | None = None,
+                 link_attachments=None):
         self.limits = limits
         self.kin = kinematics
         # OccupancyMap | None (see perception/occupancy.py). Optional and
@@ -318,6 +319,7 @@ class SafetyHarness:
         # every vetted pose and every streamed step (opt-in per arm profile:
         # `safety.tool_volume`; see `_tool_volume_violation`).
         self.tool_volume = tool_volume
+        self.link_attachments = link_attachments
         # Where this arm is bolted, as a 4x4 base->table transform. None means
         # "the base frame IS the table frame", which is exactly true for a
         # single-arm rig and is why nothing here changes for one arm.
@@ -378,6 +380,7 @@ class SafetyHarness:
         #: trace by the skill runtime (`drain_clearance_reports`); bounded to
         #: the map's `refusal_snapshot.max_reports` at every append
         self._clearance_reports: deque = deque()
+        self._clearance_depth_evidence: dict = {}
         #: refusal reports NOT kept (a filing exception, eviction at the
         #: report cap) since the last drain (`drain_clearance_lost`)
         self._clearance_lost = 0
@@ -696,9 +699,25 @@ class SafetyHarness:
         reports = self._clearance_reports
         while True:
             try:
-                out.append(reports.popleft()[1])
+                report = reports.popleft()[1]
+                self._clearance_depth_evidence.pop(id(report), None)
+                out.append(report)
             except IndexError:
                 return out
+
+    def save_clearance_evidence(self, writer) -> None:
+        """Write retained input frames after motion, before draining the reports.
+
+        Diagnostic-only: failures are visible in the report, never a changed
+        safety verdict. Unwritten frames are released by the normal drain.
+        """
+        for _, report in self._clearance_reports:
+            evidence = self._clearance_depth_evidence.get(id(report))
+            if evidence is not None:
+                try:
+                    report["depth_evidence"] = writer(evidence)
+                except Exception as exc:
+                    report["depth_evidence"] = {"error": f"{type(exc).__name__}: {exc}"}
 
     def drain_clearance_lost(self) -> int:
         """How many refusal reports were not kept since the last drain (a
@@ -772,6 +791,10 @@ class SafetyHarness:
             if reports.maxlen != bounds.max_reports:
                 self._clearance_lost += max(len(reports) - bounds.max_reports, 0)
                 reports = self._clearance_reports = deque(reports, maxlen=bounds.max_reports)
+                retained = {id(r) for _, r in reports}
+                self._clearance_depth_evidence = {
+                    key: value for key, value in self._clearance_depth_evidence.items() if key in retained
+                }
             refreshes = getattr(occ, "refreshes", None)
             clears = getattr(occ, "cache_clears", None)
             # Dedupe per drain, keyed BEFORE any snapshot work: a refusal
@@ -806,6 +829,13 @@ class SafetyHarness:
                 if record is None:
                     raise AttributeError("the occupancy map has no clearance_record")
                 report["map"] = dict(record())
+                capture = getattr(occ, "refusal_depth_evidence", None)
+                if callable(capture):
+                    evidence = capture()
+                    if evidence is not None:
+                        self._clearance_depth_evidence[id(report)] = evidence
+                    else:
+                        report["depth_evidence"] = {"unavailable": "no committed depth snapshot"}
             except Exception as exc:  # noqa: BLE001 -- the refusal stands without its snapshot
                 errors.append(f"{type(exc).__name__}: {exc}")
             if sample is not None:
@@ -825,6 +855,10 @@ class SafetyHarness:
             if reports.maxlen is not None and len(reports) >= reports.maxlen:
                 self._clearance_lost += 1                      # the oldest is evicted
             reports.append((key, report))
+            retained = {id(r) for _, r in reports}
+            self._clearance_depth_evidence = {
+                key: value for key, value in self._clearance_depth_evidence.items() if key in retained
+            }
 
     @property
     def contact_zones(self) -> list[dict]:
@@ -1352,6 +1386,11 @@ class SafetyHarness:
             if reason is not None:
                 reject(reason)
 
+        reason = self._link_attachment_violation(q_next, ctx=self._gate_ctx(
+            "approve" if live_checks else "vet_step", q_next, q_prev, T))
+        if reason is not None:
+            reject(reason)
+
         # Coarse link check: joint origins must stay above the table too
         # (elbow scooping the table is the classic failure). The LAST link is
         # the gripper_end/TCP itself -- it legitimately descends to the
@@ -1479,6 +1518,10 @@ class SafetyHarness:
             if reason is not None:
                 return reason
 
+        reason = self._link_attachment_violation(q, ctx=self._gate_ctx("vet_pose", q, None, T))
+        if reason is not None:
+            return reason
+
         links = self.kin.link_positions(q)
         for i, p in enumerate(links[1:], start=2):
             if p[2] < self.limits.table_z + 0.01 and not self._in_cylinder(p, exempt):
@@ -1499,6 +1542,55 @@ class SafetyHarness:
         # candidate that would abort against the neighbour is discarded at
         # ranking time instead of failing mid-descent.
         return self._neighbor_violation(q)
+
+    def _link_attachment_violation(self, q, *, ctx=None):
+        if self.link_attachments is None:
+            return None
+        for name, points in self.link_attachments.points(self.kin, q):
+            if np.any(points[:, 2] < self.limits.table_z + self.limits.table_clearance):
+                return f"link attachment {name}: table clearance violated"
+            # Conservative AABB overlap, including thin keep-out regions
+            # between grid samples. False positives refuse, never admit.
+            lo, hi = points.min(axis=0), points.max(axis=0)
+            for kmin, kmax in self.limits.keep_out:
+                if np.all(hi >= kmin) and np.all(lo <= kmax):
+                    return f"link attachment {name}: keep-out overlap"
+            for point in points:
+                reason = self._visitor_zone_reason(point)
+                if reason is not None:
+                    return f"link attachment {name}: {reason}"
+            if self.occupancy is not None:
+                gate = f"link attachment {name}"
+
+                def refuse(reason, hit=None):
+                    if ctx is not None:
+                        self._file_clearance_report(ctx, gate, reason, hit, None,
+                                                    self._tool_frame(ctx.T_tcp))
+                    return reason
+
+                mapped = points if self.base_pose is None else (
+                    points @ self.base_pose[:3, :3].T + self.base_pose[:3, 3])
+                try:
+                    distance = self.occupancy.clearance(mapped)
+                except SafetyViolation as exc:
+                    if ctx is not None:
+                        self._file_clearance_report(ctx, gate, None, None, None, None, raised=exc)
+                    raise
+                if distance is None:
+                    if _unknown_blocks(self.occupancy):
+                        return refuse(f"link attachment {name}: obstacle clearance unavailable")
+                    continue
+                distance = np.asarray(distance, dtype=float)
+                if distance.shape != (len(points),):
+                    return refuse(f"link attachment {name}: invalid obstacle clearance shape")
+                if (np.isnan(distance).any() or np.isneginf(distance).any()
+                        or np.any(distance < self.limits.min_clearance_m)):
+                    worst = int(np.argmin(np.nan_to_num(distance, nan=-np.inf)))
+                    return refuse(f"link attachment {name}: obstacle clearance {distance[worst]:.4f} m "
+                            f"below margin {self.limits.min_clearance_m:.4f} m "
+                            f"at {mapped[worst].round(4).tolist()}",
+                            (worst, mapped[worst], distance[worst]))
+        return None
 
     def route_end_violation(self, q: np.ndarray) -> str | None:
         """Why a planned route may not END at joint pose `q`, or None.

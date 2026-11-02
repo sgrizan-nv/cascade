@@ -2,7 +2,7 @@
 
 Self-contained on purpose: reBotArm_control_py's kinematics module reads its
 own global config/rebotarm.yaml (ignoring the hw_yaml passed to RebotArm), so
-using it with the RS arm silently loads the DM model. Here the model path
+its default model depends on a separate hardware selector. Here the model path
 comes from the arm profile explicitly. Both .urdf and .usd/.usda paths load:
 USD goes through usd_model's in-memory USD-physics -> URDF translation
 (Pinocchio has no USD reader), so the exact asset Newton/Isaac Sim simulates

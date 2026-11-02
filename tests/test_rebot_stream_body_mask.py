@@ -31,12 +31,19 @@ def connected_arm(monkeypatch):
     """RebotRSArm on a fake SDK: MIT sends are recorded, position reads counted."""
     arm = RebotRSArm(Cfg({}))
     sends, reads = [], []
-    arm._arm = SimpleNamespace(arm=SimpleNamespace(send_mit=lambda q, **kw: sends.append(np.copy(q))),
-                               has_gripper=False)
+    names = [f"joint{i}" for i in range(1, 7)]
+    group = SimpleNamespace(joint_names=names, _mm={})
+    for i, name in enumerate(names):
+        def send(pos, vel, kp, kd, tau, index=i):
+            if index == 0:
+                sends.append(np.zeros(6))
+            sends[-1][index] = pos
+        group._mm[name] = SimpleNamespace(send_mit=send)
+    arm._arm = SimpleNamespace(arm=group, has_gripper=False)
     arm._stopped = False
     arm._read_failures = 0
     arm._last_cmd_q, arm._last_cmd_t = None, None
-    arm._mit_kp = arm._mit_kd = None
+    arm._mit_kp, arm._mit_kd = np.ones(6), np.ones(6)
     arm.settle_timeout_s = 0.2
 
     def read_positions():

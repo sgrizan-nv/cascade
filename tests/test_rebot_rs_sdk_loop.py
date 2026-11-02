@@ -51,7 +51,7 @@ def test_rs_drivers_never_reference_the_sdk_controller_loop():
 
 def test_each_waypoint_is_exactly_one_direct_mit_frame(monkeypatch):
     """The fake SDK's start_control_loop raises; connect + streaming still
-    work, and every send_joint_target is one arm-group send_mit -- the only
+    work, and every send_joint_target is one frame per arm motor -- the only
     writer on the bus is the harness-approved stream."""
     from cascade.control import robstride
 
@@ -60,8 +60,9 @@ def test_each_waypoint_is_exactly_one_direct_mit_frame(monkeypatch):
     _install_fake_sdk(monkeypatch, log)
     arm = _rs_arm()
     arm.connect()
-    before = sum(1 for ev in log if ev == ("group_send_mit", "arm"))
+    before = sum(1 for ev in log if ev[0] == "send_mit" and ev[1] != "gripper")
     for q in (np.zeros(6), np.full(6, 0.01), np.full(6, 0.02)):
         arm.send_joint_target(q)
-    after = sum(1 for ev in log if ev == ("group_send_mit", "arm"))
-    assert after - before == 3
+    after = sum(1 for ev in log if ev[0] == "send_mit" and ev[1] != "gripper")
+    assert after - before == 3 * 6
+    assert not any(ev[0] == "group_send_mit" for ev in log)

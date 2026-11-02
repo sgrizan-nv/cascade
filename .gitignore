@@ -152,6 +152,8 @@ activemq-data/
 .env
 .envrc
 .venv
+/.venv-rebot/
+/.runtime-rebot/
 env/
 venv/
 ENV/

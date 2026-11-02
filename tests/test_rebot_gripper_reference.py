@@ -286,6 +286,9 @@ class _SdkMotor:
         assert param == rs.MECH_POS
         return self.jaw.read_raw()
 
+    def send_mit(self, pos, vel, kp, kd, tau):
+        self.jaw.send_raw(float(pos), float(kp))
+
 
 class _SdkGripper:
     def __init__(self, jaw):

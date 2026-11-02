@@ -326,6 +326,7 @@ class ExtrinsicDriftMonitor:
                             offset_mm=1000 * r.offset_m, offset_deg=r.offset_deg)
                 if not self._flagged and self._consecutive >= self.config.consecutive:
                     self._flag(r)
+                    self._save_flag_evidence(sample, frame, r)
             elif not self._flagged:
                 self._consecutive = 0
         if self._flagged:
@@ -333,6 +334,33 @@ class ExtrinsicDriftMonitor:
         return res
 
     # ── flag / adopt ─────────────────────────────────────────────────────
+
+    def _save_flag_evidence(self, sample, frame, result) -> None:
+        """Retain the exact failed check, after fusion has already stopped.
+
+        No new capture or joint read: a later view may describe a different
+        arm pose. One snapshot per invalidation, not a continuous recording.
+        This is diagnostic evidence, never an accepted calibration record.
+        """
+        if self.run_dir is None:
+            return
+        try:
+            directory = self.run_dir / "extrinsics_evidence"
+            directory.mkdir(parents=True, exist_ok=True)
+            name = "".join(c if c.isalnum() or c in "-_" else "_" for c in self.name)
+            path = directory / f"{name}_{time.time_ns()}.npz"
+            np.savez_compressed(
+                path, depth_m=sample.depth_m, rgb=frame.rgb, K=sample.K,
+                q=np.asarray(sample.q), T_gripper2base=sample.T_gripper2base,
+                T_reference=self._T_ref, T_estimate=result.T_estimate,
+                frame_t=np.asarray(sample.t),
+                observed_t=np.asarray(frame.observed_t if frame.observed_t is not None else np.nan),
+            )
+            self._event("drift_evidence_saved", path=str(path.relative_to(self.run_dir)),
+                        frame_t=sample.t, q=list(sample.q),
+                        offset_mm=1000 * result.offset_m, offset_deg=result.offset_deg)
+        except Exception as exc:  # evidence failure must not undo invalidation
+            self._log(f"[drift:{self.name}] could not save drift evidence: {exc}")
 
     def _set_fusion(self, fuse, map_depth) -> None:
         if self._watcher is not None:

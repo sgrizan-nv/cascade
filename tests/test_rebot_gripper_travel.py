@@ -27,10 +27,10 @@ from cascade.config import Cfg
 class _GripGroup:
     def __init__(self):
         self.sent = []
-        self._mm = {"gripper": object()}
+        self._mm = {"gripper": self}
         self.joint_names = ["gripper"]
 
-    def send_mit(self, pos, kp=None, kd=None, **kw):
+    def send_mit(self, pos, vel, kp, kd, tau):
         self.sent.append((float(np.asarray(pos).reshape(-1)[0]),
                           float(np.asarray(kp).reshape(-1)[0])))
 

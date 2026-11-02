@@ -44,6 +44,7 @@ does not provide observed geometry or admit a robot trajectory.
 
 from __future__ import annotations
 
+import copy
 import logging
 import threading
 import time
@@ -310,6 +311,10 @@ class OccupancyMap:
         #: (H, W) bool, evaluated on the exact depth image that ships.
         self._pixel_body_fns: list = []
         self.last_masked_px: int = 0
+        # Immutable-by-convention frame copies, published with their grid.
+        # Refusal reports retain references; no disk I/O on a safety check.
+        self._pending_depth_evidence = None
+        self._depth_evidence = None
         self._body_error: str | None = None
         self.allowed_contact_paths: set[str] = set()
         self._refresh_lock = threading.RLock()
@@ -634,7 +639,7 @@ class OccupancyMap:
         self._pixel_body_fns.append(mask_fn)
         self._body_error = "robot body pose not yet validated by a masked depth refresh"
 
-    def _robot_pixel_masks(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray) -> np.ndarray:
+    def _robot_pixel_masks(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray, *, frame=None) -> np.ndarray:
         """OR of every pixel-masked body on this exact depth image. Every
         body is evaluated before anything is sent; one failure refuses the
         frame (`OccupancyError`) and latches `_body_error`."""
@@ -642,7 +647,10 @@ class OccupancyMap:
         for i, fn in enumerate(self._pixel_body_fns):
             name = getattr(fn, "name", f"#{i}")
             try:
-                mask = fn(depth, K, T_base_cam)
+                timed = getattr(fn, "for_frame", None)
+                mask = (timed(depth, K, T_base_cam, frame=frame)
+                        if frame is not None and callable(timed)
+                        else fn(depth, K, T_base_cam))
                 if (not isinstance(mask, np.ndarray) or mask.dtype != np.bool_
                         or mask.shape != total.shape):
                     raise ValueError(f"expected a bool {total.shape} image, got "
@@ -1006,6 +1014,7 @@ class OccupancyMap:
         `fetched` is (occupied, grid, origin, voxel), or None without a region
         of interest. Talks to the bridge; installs nothing.
         """
+        self._pending_depth_evidence = None
         prepared = None
         if frame.has_depth:
             if self._depth_supported is not False:
@@ -1050,6 +1059,7 @@ class OccupancyMap:
         """Forget the cached grid until the next commit (caller holds
         `_refresh_lock`) and count it: the only place the cache is dropped."""
         self._grid = self._occupied = None
+        self._depth_evidence = None
         self._last_refresh = None
         self.cache_clears += 1
 
@@ -1061,6 +1071,7 @@ class OccupancyMap:
         self._last_refresh = capture_t if self.required else time.monotonic()
         self.last_error = None
         self.refreshes += 1
+        self._depth_evidence = self._pending_depth_evidence
         if frame.has_depth:
             self._body_error = None
 
@@ -1072,7 +1083,39 @@ class OccupancyMap:
         excluded = self._robot_depth_mask(depth, K, T_base_cam, frame=frame)
         prepared = self._prepare_payload(frame, T_base_cam) if self.tracks_payload else None
         self._send_depth(depth, K, T_base_cam, excluded)
+        # Diagnostic failures cannot change integration or motion policy.
+        try:
+            arrays = {
+                "depth_m": depth.copy(), "excluded_mask": excluded.copy(),
+                "K": K.copy(), "T_base_cam": np.asarray(T_base_cam).copy(),
+                "rgb": np.asarray(frame.rgb).copy(), "rgb_K": np.asarray(frame.K).copy(),
+            }
+            for array in arrays.values():
+                array.flags.writeable = False
+            self._pending_depth_evidence = {
+                "arrays": arrays,
+                "metadata": {
+                    "scope": "latest integrated depth frame, not full accumulated map history",
+                    "frame_t": float(frame.t), "observed_t": getattr(frame, "observed_t", None),
+                    "depth_stride": s, "capture": copy.deepcopy(getattr(frame, "capture", None)),
+                    "mask_states": [
+                        {"name": getattr(fn, "name", str(i)), "state": copy.deepcopy(getattr(fn, "last", None))}
+                        for i, fn in enumerate(self._pixel_body_fns)
+                    ],
+                },
+            }
+        except Exception as exc:
+            self._pending_depth_evidence = {"error": f"{type(exc).__name__}: {exc}"}
         return prepared
+
+    def refusal_depth_evidence(self):
+        """Latest committed input; caller retains it with clearance_record().
+
+        The harness holds the same refresh lock across both reads. Refreshes
+        replace snapshots, never mutate them. Legacy cloud input has no snapshot.
+        """
+        with self._refresh_lock:
+            return self._depth_evidence
 
     def _send_depth(self, depth, K, T_base_cam, excluded):
         # Raw self/payload depth may only go to an explicitly negotiated
@@ -1241,7 +1284,7 @@ class OccupancyMap:
     def _robot_depth_mask(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray, *, frame=None) -> np.ndarray:
         """Identify excluded measured surfaces before choosing backend semantics."""
         bodies = self._robot_bodies(frame)
-        own = self._robot_pixel_masks(depth, K, T_base_cam)
+        own = self._robot_pixel_masks(depth, K, T_base_cam, frame=frame)
         from .robot_mask import robot_mask
 
         total = np.zeros(depth.shape, dtype=bool)
@@ -1263,7 +1306,8 @@ class OccupancyMap:
         if self._pixel_body_fns and frame.has_depth:
             # the legacy cloud path back-projects the FULL-resolution depth
             own = self._robot_pixel_masks(np.asarray(frame.depth_m, dtype=np.float32),
-                                          np.asarray(frame.K, dtype=np.float64), T_base_cam)
+                                          np.asarray(frame.K, dtype=np.float64), T_base_cam,
+                                          frame=frame)
             pixels = own if pixels is None else (pixels | own)
         if pixels is not None:
             import copy

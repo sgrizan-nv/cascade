@@ -108,6 +108,9 @@ class _SdkController:
     def disable_all(self):
         self._log.append(("disable_all", None))
 
+    def enable_all(self):
+        self._log.append(("enable", "arm"))
+
 
 def _install_fake_sdk(monkeypatch, log, failures=None):
     failures = failures or {}
@@ -155,6 +158,135 @@ def _rs_arm():
 
     # gravity comp OFF so connect() does not need pinocchio/the URDF here
     return RebotRSArm(Cfg({"hw_yaml": "rebotarm_rs.yaml", "n_joints": 6}))
+
+
+def test_sdk_preloads_measured_arm_and_jaw_before_enable(monkeypatch, no_sleep):
+    log = _Log()
+    _install_fake_sdk(monkeypatch, log)
+    monkeypatch.setattr(_Motor, "robstride_get_param_f32",
+                        lambda self, param, *a: .03 if self.name == "gripper" else .01)
+
+    def send(motor, pos, vel, kp, kd, tau):
+        log.append(("preload", motor.name, pos))
+
+    monkeypatch.setattr(_Motor, "send_mit", send)
+    arm = _rs_arm()
+    arm.connect()
+    enabled = log.index_of(lambda event: event[0] == "enable")
+    preloads = [event for event in log[:enabled] if event[0] == "preload"]
+    assert len(preloads) == 7
+    assert {event[1] for event in preloads} == {f"joint{i}" for i in range(1, 7)} | {"gripper"}
+    for _, name, target in preloads:
+        assert target == pytest.approx(.03 if name == "gripper" else .01)
+    np.testing.assert_allclose(arm._last_cmd_q, np.full(6, .01))
+
+
+@pytest.mark.parametrize("hold_fails", [False, True])
+def test_sdk_target_failure_latches_stop_and_reports_recovery(monkeypatch, no_sleep, hold_fails):
+    from cascade.control.rebot_rs_arm import MotorCommandError
+    log = _Log()
+    _install_fake_sdk(monkeypatch, log)
+    arm = _rs_arm()
+    arm.connect()
+    old = arm._last_cmd_q.copy()
+    sent = []
+
+    def send(motor, pos, vel, kp, kd, tau):
+        sent.append((motor.name, pos))
+        if motor.name == "joint3" and (pos != 0 or hold_fails):
+            raise RuntimeError("injected transmit failure")
+
+    monkeypatch.setattr(_Motor, "send_mit", send)
+    with pytest.raises(MotorCommandError, match="joint3.*injected transmit failure") as failure:
+        arm.send_joint_target(np.full(6, .01))
+    assert ("recovery hold also failed" in str(failure.value)) is hold_fails
+    assert len(sent) == 12  # all six targets, then all six previous hold positions
+    assert sent[-6:] == [(f"joint{i}", 0.) for i in range(1, 7)]
+    np.testing.assert_array_equal(arm._last_cmd_q, old)
+    assert arm._stopped
+    arm.send_joint_target(np.full(6, .02))
+    assert len(sent) == 12
+    assert not any(e[0] in ("estop", "disconnect", "disable_all") for e in log)
+
+
+def test_sdk_stop_and_gripper_failure_are_visible(monkeypatch, no_sleep):
+    from cascade.control.rebot_rs_arm import MotorCommandError
+    log = _Log()
+    _install_fake_sdk(monkeypatch, log)
+    arm = _rs_arm()
+    arm.connect()
+    sent = []
+
+    def send(motor, *args):
+        sent.append(motor.name)
+        raise RuntimeError("CAN down")
+
+    monkeypatch.setattr(_Motor, "send_mit", send)
+    with pytest.raises(MotorCommandError, match="joint1.*joint6"):
+        arm.stop()
+    assert sent == [f"joint{i}" for i in range(1, 7)]
+    with pytest.raises(MotorCommandError, match="gripper.*CAN down"):
+        arm._gripper_send_raw(0., 1.)
+    assert not any(e[0] in ("estop", "disconnect", "disable_all") for e in log)
+
+
+def test_sdk_mode_failure_refuses_enable(monkeypatch, no_sleep):
+    from cascade.control.rebot_rs_arm import MotorCommandError
+    log = _Log()
+    _install_fake_sdk(monkeypatch, log)
+    monkeypatch.setattr(_Group, "mode_mit", lambda *a: False)
+    arm = _rs_arm()
+    with pytest.raises(MotorCommandError, match="mode setup failed"):
+        arm.connect()
+    assert arm._arm is None
+    assert ("disconnect", None) in log
+    assert not any(e[0] == "enable" for e in log)
+
+
+def test_sdk_preload_failure_refuses_enable(monkeypatch, no_sleep):
+    from cascade.control.rebot_rs_arm import MotorCommandError
+    log = _Log()
+    _install_fake_sdk(monkeypatch, log)
+
+    def send(motor, *args):
+        if motor.name == "joint3":
+            raise RuntimeError("preload failed")
+
+    monkeypatch.setattr(_Motor, "send_mit", send)
+    arm = _rs_arm()
+    with pytest.raises(MotorCommandError, match="joint3.*preload failed"):
+        arm.connect()
+    assert arm._arm is None
+    assert not any(e[0] == "enable" for e in log)
+    assert ("disconnect", None) in log
+
+
+def test_sdk_partial_enable_failure_retains_hold_marker_and_bus(monkeypatch, no_sleep):
+    from cascade.control.rebot_rs_arm import MotorCommandError, arm_hold
+    log = _Log()
+    _install_fake_sdk(monkeypatch, log)
+    remembered = []
+    monkeypatch.setattr(arm_hold, "remember", lambda *a, **kw: remembered.append(kw))
+
+    def fail(*a):
+        raise RuntimeError("enable failed partway")
+
+    monkeypatch.setattr(_SdkController, "enable_all", fail)
+    arm = _rs_arm()
+    with pytest.raises(MotorCommandError, match="enable_all.*partway"):
+        arm.connect()
+    assert arm._arm is not None and remembered
+    assert not any(e[0] in ("disconnect", "disable_all", "close_bus") for e in log)
+
+
+def test_sdk_unreadable_jaw_refuses_before_any_enable(monkeypatch, no_sleep):
+    log = _Log()
+    _install_fake_sdk(monkeypatch, log)
+    monkeypatch.setattr(_Motor, "robstride_get_param_f32",
+                        lambda self, param, *a: float("nan") if self.name == "gripper" else 0.)
+    with pytest.raises(RuntimeError, match="gripper mechPos"):
+        _rs_arm().connect()
+    assert not any(event[0] == "enable" for event in log)
 
 
 class _ConnectClock:

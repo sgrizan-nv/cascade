@@ -197,6 +197,47 @@ class LazyArm(ArmBase):
     def get_state(self, **kwargs):
         return self._ensure().get_state(**kwargs)
 
+    def get_state_if_connected(self):
+        """Read measured feedback without waking or racing a disconnected arm.
+
+        Unlike body_mask_q, this never substitutes a streaming target for
+        feedback: extrinsic drift checks need the measured physical pose.
+        """
+        with self._lock:
+            return None if self._arm is None else self._arm.get_state()
+
+    def body_mask_state(self):
+        """Passive mask reads never connect, even across a concurrent teardown.
+
+        Hold the lifecycle lock through the backend read: a separate
+        `connected` check followed by __getattr__ can otherwise wake a newly
+        disconnected arm while the camera is shutting down.
+        """
+        with self._lock:
+            if self._arm is None:
+                return None
+            read = getattr(self._arm, "body_mask_state", None)
+            return read() if callable(read) else self._arm.get_state()
+
+    def body_mask_q(self):
+        """The capsule-mask equivalent of the non-materializing state read."""
+        with self._lock:
+            if self._arm is None:
+                return None
+            read = getattr(self._arm, "body_mask_q", None)
+            return read() if callable(read) else self._arm.get_state().q
+
+    def body_mask_state_at(self, capture_t):
+        """Capture-aligned passive lookup, never materializing a standby arm."""
+        with self._lock:
+            if self._arm is None:
+                return None
+            read = getattr(self._arm, "body_mask_state_at", None)
+            if callable(read):
+                return read(capture_t)
+            read = getattr(self._arm, "body_mask_state", None)
+            return read() if callable(read) else self._arm.get_state()
+
     def send_joint_target(self, q) -> None:
         self._command().send_joint_target(q)
 

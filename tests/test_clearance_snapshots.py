@@ -285,6 +285,82 @@ def test_every_report_names_its_snapshot_query_and_bounds():
 # ── cost on the motion path (Review Focus 4) and failure isolation ─────────
 
 
+def test_refusal_retains_committed_frame_across_new_refresh_and_source_mutation(tmp_path):
+    import json
+    from cascade.agent.trace import TraceLogger
+
+    occ = live_map(UNDER)
+    frame = depth_frame()
+    frame.capture = {"camera": "test", "setting": [28]}
+    mask = np.zeros(frame.depth_m.shape, dtype=bool)
+    mask[0, 0] = True
+
+    class Mask:
+        name = "test_arm"
+        last = {"q": [0.1, 0.2, 0.3], "pose_semantics": "command target"}
+
+        def __call__(self, depth, K, T):
+            return mask.copy()
+
+    provider = Mask()
+    occ.depth_stride = 1
+    occ.add_robot_body_mask(provider)
+    occ.refresh(frame, T_CAM)
+    snapshot = occ.refusal_depth_evidence()
+    _, _, h = case(occupancy=occ)
+    reason = h.vet_pose(np.array([.3, 0., .3]))
+    assert reason and not list(tmp_path.glob("**/*.npz"))  # no writes on refusal
+    expected_depth = frame.depth_m.copy()
+    frame.depth_m[:] = 1.0
+    frame.capture["setting"][0] = 99
+    provider.last["q"][0] = 0.9
+    occ.refresh(frame, T_CAM)
+    assert occ.refusal_depth_evidence() is not snapshot
+    trace = TraceLogger(tmp_path)
+    h.save_clearance_evidence(trace.save_depth_evidence)
+    (report,) = h.drain_clearance_reports()
+    assert report["reason"] == reason and report["map"]["refreshes"] == 2
+    with np.load(tmp_path / report["depth_evidence"]["path"], allow_pickle=False) as data:
+        np.testing.assert_array_equal(data["depth_m"], expected_depth)
+        np.testing.assert_array_equal(data["excluded_mask"], mask)
+        metadata = json.loads(str(data["metadata_json"]))
+        assert metadata["capture"]["setting"] == [28]
+        assert metadata["mask_states"][0]["state"]["q"] == [0.1, 0.2, 0.3]
+
+
+def test_failed_refresh_does_not_relabel_old_grid_with_new_depth():
+    occ = live_map(UNDER)
+    before = occ.refusal_depth_evidence()
+    occ.bridge.fail = "query failed after depth integration"
+    frame = depth_frame()
+    frame.depth_m[:] = 0.5
+    occ.refresh(frame, T_CAM)
+    assert occ.last_error
+    assert occ.refusal_depth_evidence() is before
+    assert occ.refreshes == 1
+    occ._drop_cache()
+    assert occ.refusal_depth_evidence() is None
+
+
+def test_depth_evidence_write_failure_keeps_refusal_and_is_reported(tmp_path, monkeypatch):
+    from cascade.agent.trace import TraceLogger
+
+    occ = live_map(UNDER)
+    _, _, h = case(occupancy=occ)
+    reason = h.vet_pose(np.array([.3, 0., .3]))
+
+    def fail(path, **kwargs):
+        path.write_bytes(b"partial")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(np, "savez_compressed", fail)
+    h.save_clearance_evidence(TraceLogger(tmp_path).save_depth_evidence)
+    (report,) = h.drain_clearance_reports()
+    assert report["reason"] == reason
+    assert "disk full" in report["depth_evidence"]["error"]
+    assert not list(tmp_path.glob("**/*.npz"))
+
+
 def test_admitted_stream_never_builds_a_snapshot(monkeypatch):
     occ = live_map(centred_box([.3, .1, .3], [.04, .04, .04]))               # its face at y = 0.08
     safe, raw, h = case(occupancy=occ)
@@ -1012,6 +1088,12 @@ def test_runtime_drains_reports_into_the_trace(demo_cfg, tmp_path):
         reports = row["context"]["clearance"]
         assert reports[0]["gate"] == "tcp" and all(set(rep) >= REPORT_KEYS for rep in reports)
         assert all(rep["voxels"] for rep in reports)
+        for report in reports:
+            evidence = report["depth_evidence"]
+            with np.load(runtime.trace.run_dir / evidence["path"], allow_pickle=False) as saved:
+                assert saved["depth_m"].shape == saved["excluded_mask"].shape
+                np.testing.assert_allclose(saved["T_base_cam"], T_CAM)
+        assert not h._clearance_depth_evidence
         # a refusal filed outside any call is stale: the next call drains it first
         assert h.vet_pose(np.asarray(reports[0]["q"], dtype=float))
         r = runtime.execute("move_relative", {"direction": "up", "distance_m": .02})
@@ -1040,7 +1122,9 @@ def test_reports_evicted_at_the_cap_are_counted(monkeypatch):
     _, _, h = case(occupancy=occ)
     for x in (.20, .25, .30, .35):                            # four cells: two kept, two evicted
         assert h.vet_pose(np.array([x, 0., .3]))
+    assert len(h._clearance_depth_evidence) == 2
     assert len(h.drain_clearance_reports()) == 2 and h.drain_clearance_lost() == 2
+    assert not h._clearance_depth_evidence
     # a cap lowered while reports are on file: the ones it cuts are lost too
     occ.refusal_snapshot = RefusalSnapshot(max_reports=32)
     for x in (.20, .25, .30, .35):

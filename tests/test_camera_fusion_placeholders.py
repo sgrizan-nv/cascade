@@ -24,7 +24,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 CAMERAS = REPO / "configs" / "cameras"
-REAL_TYPES = {"realsense", "orbbec"}
+REAL_TYPES = {"realsense", "orbbec", "oak"}
 
 
 def _profiles():

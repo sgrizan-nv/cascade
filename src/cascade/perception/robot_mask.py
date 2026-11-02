@@ -176,12 +176,26 @@ class MeshBodyMask:
         self.last: dict | None = None
 
     def __call__(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray) -> np.ndarray:
+        return self._mask_state(depth, K, T_base_cam, self._state_fn())
+
+    def for_frame(self, depth, K, T_base_cam, *, frame):
+        """Use the capture clock where the backend provides timestamped poses."""
+        read = getattr(self._state_fn, "at_time", None)
+        capture_t = getattr(frame, "observed_t", None)
+        if capture_t is None:
+            capture_t = frame.t
+        state = read(capture_t) if callable(read) else self._state_fn()
+        mask = self._mask_state(depth, K, T_base_cam, state)
+        self.last.update(capture_t=float(capture_t), state_t=float(state.t),
+                         skew_s=float(state.t) - float(capture_t))
+        return mask
+
+    def _mask_state(self, depth, K, T_base_cam, state):
         import time
 
         from .link_mask import posed_pieces, rasterize_pieces
 
         t0 = time.perf_counter()
-        state = self._state_fn()
         if state is None:
             raise BodyMaskUnavailable(f"{self.name}: no joint state (the arm is in standby or not readable)")
         q = np.asarray(getattr(state, "q", None), dtype=np.float64).reshape(-1)
@@ -194,7 +208,11 @@ class MeshBodyMask:
             pieces = pieces + posed_pieces(self.held_payload, pose_sets, self.base_T)
         mask = rasterize_pieces(pieces, K, T_base_cam, np.shape(depth)[:2], self.dilate_px)
         self.last = {"pixels": int(np.count_nonzero(mask)), "configs": len(pose_sets),
-                     "holding": holding, "ms": (time.perf_counter() - t0) * 1e3}
+                     "holding": holding, "ms": (time.perf_counter() - t0) * 1e3,
+                     "q": q.tolist(), "state_t": getattr(state, "t", None),
+                     "gripper_pos": getattr(state, "gripper_pos", None),
+                     "gripper_valid": bool(getattr(state, "gripper_valid", False)),
+                     "pose_semantics": "mask input; may be commanded target, not independent feedback"}
         return mask
 
     @property

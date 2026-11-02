@@ -1,0 +1,50 @@
+# OAK-D-W-97 on this workstation. Intrinsics are read from each frame.
+type: oak
+serial: "19443010D1BCB22F00"
+# Vendor DynamicCalibration result, loaded in RAM only; no EEPROM write.
+# This sensor calibration and the hand-eye record below are one validated pair.
+sensor_calibration_json: ${repo}/configs/calib/oak_sensor_corrected_20261031/sensor.json
+width: 1280
+height: 800
+fps: 10
+frame_sync: rgb_output
+warmup_frames: 60
+min_depth_m: 0.25
+max_depth_m: 3.0
+max_frame_age_s: 0.5
+max_pair_skew_s: 0.02
+# Native DepthAI speckle rejection, with the device's supported range.
+# Validated on recorded depth and 20 passive map/alignment checks; preserves
+# the existing resolution, disparity, alignment and temporal-filter settings.
+speckle_range: 28
+# Accepted 2026-10-31 for THIS fixed mounting and clamped robot base.
+# Corrected-sensor six-pose fit: 3.5 mm surface RMS, 60.2% inliers.
+# Independent resting and wrist-down checks (excluded from fit), all raw
+# frames within 2.5–7.2 mm and 1.85 degrees; limits remain 10 mm / 3 degrees.
+# Evidence: runs/oak_sensor_recalibration_20261031/.
+# Recalibrate after moving
+# the camera/base or changing encoder zeros. No depth-scale adjustment.
+fuse_beliefs: true
+extrinsics:
+  mode: eye_to_hand
+  # Missing/rejected/wrong-serial records refuse localization and fusion.
+  hand_eye_json: ${repo}/configs/calib/oak_sensor_corrected_20261031/oak_d_rebot_rs.handeye.json
+  # Reuse the existing passive monitor; it never enables a standby arm.
+  drift_monitor:
+    enabled: true
+    auto_apply: false
+
+# Existing BrainDetector + SAM pipeline, using this workstation's provider.
+# No credentials are stored here. CASCADE's camera-profile detector override
+# applies only because this is the primary manipulation camera.
+detector:
+  type: brain
+  base_url: https://inference-api.nvidia.com/v1
+  model: openai/openai/gpt-6-astra
+  api_key_file: ~/.config/cascade/inferencehub_api_key
+  timeout_s: 120
+  inventory_timeout_s: 120
+  max_tokens: 4096
+  refresh_s: 60
+  idle_refresh_s: 120
+  max_cache_age_s: 125

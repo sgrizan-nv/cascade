@@ -221,6 +221,11 @@ Unknown keys, non-bools and non-finite or non-positive values are refused at sta
    (a tick in flight drops its commit), other cameras untouched. Surfaced on stderr, in
    `<run>/extrinsics_drift.jsonl`, as a memory note, and as `extrinsics_drift` in dashboard
    `/state` and MCP `world_state`.
+   When a run directory is available, the triggering check also saves one
+   `<run>/extrinsics_evidence/*.npz`: its original depth/RGB, intrinsics, measured joints,
+   frame timestamp, FK pose, reference transform and fitted transform. The JSONL
+   `drift_evidence_saved` event links it. This is diagnostic evidence, not an accepted
+   calibration. Saving happens after invalidation; a disk error cannot restore fusion.
 4. **Passive re-calibration**: up to 24 distinct static views (pre-knock views dropped) are
    solved into a CANDIDATE `<run>/extrinsics_candidates/<camera>_<stamp>.handeye.json`; the arm
    never moves for it. `auto_apply: false` prints how to adopt it (point `hand_eye_json` at it

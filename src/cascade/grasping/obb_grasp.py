@@ -225,8 +225,10 @@ def _widest_section_z(points: np.ndarray, axis: np.ndarray, grasp_z: float,
     horizontal slices, anchored to the bottom rather than the highest point.
     A noisy point at the top must not move every slice through the cloud.
     The height changes only when the object is visibly rounded: the
-    topmost slice is under 80% of the widest one AND the slice at the planned
-    height is under 90% of it. The new height is the centre of the slices
+    observed upper section is under 80% of the widest one AND the slice at
+    the planned height is under 90% of it. A broad surface above the planned
+    height contradicts tapering even if a noisy high patch narrows the last
+    slice. The new height is the centre of the slices
     within 5% of the widest, weighted by their width above that threshold.
     Weights taper to zero so a slice crossing the threshold cannot move the
     target by a whole slice. A long uniform body (a bottle under its neck)
@@ -281,6 +283,12 @@ def _widest_section_z(points: np.ndarray, axis: np.ndarray, grasp_z: float,
     # bottom-anchored slice. Missing a can's lid can make a partial view of
     # its sides look rounded even though the lid spans the full width.
     w_top = top_width if top_width is not None else float(w[-1])
+    # The highest depth is not necessarily the top surface. A broad flat
+    # lid below a small high patch must also veto the rounded-object inset;
+    # otherwise partial side visibility can pull a box grasp to the table.
+    upper = w[c >= grasp_z]
+    if len(upper):
+        w_top = max(w_top, float(upper.max()))
     w_here = float(np.interp(grasp_z, c, w))
     if w_top >= 0.8 * w_max or w_here >= 0.9 * w_max:
         return grasp_z

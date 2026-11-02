@@ -1,0 +1,48 @@
+# This workstation: B601-RS + fixed OAK-D + Sonix on the top motor housing.
+# Inherit the standard RS controller, gains, gravity compensation, settling,
+# home/park poses and safety policy. Only installed equipment differs here.
+extends: rebot_rs
+model: ${repo}/.runtime-rebot/model/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf
+
+# Same boxes feed body masking and link-frame collision samples. The latter
+# adds 1 cm geometric padding, then enforces the normal 3 cm obstacle margin.
+# Source: calibrated depth + multi-pose projections, operator identification
+# of the top black motor housing, SDK motor_5.STL belongs to link4.
+check_link_attachments: true
+body_mask:
+  attachments:
+    - name: sonix_head
+      link: link4
+      box: [0.08, 0.09, 0.08]
+      xyz: [0.12, -0.14, -0.025]
+      rpy: [0.0, 0.0, 0.0]
+    - name: sonix_stem
+      link: link4
+      box: [0.065, 0.06, 0.065]
+      xyz: [0.12, -0.075, -0.025]
+      rpy: [0.0, 0.0, 0.0]
+    # Retain the parent's upper-wrist envelope for the motor-to-motor cable.
+    # Both refusal voxels in rebot-oak-run-_6am7vfe lie inside this nominal
+    # envelope, before inflation. The D455F itself is not installed here.
+    # Existing attachment collision checks also protect this entire volume.
+    - name: wrist_motor_cable
+      link: gripper_end
+      box: [0.065, 0.14, 0.055]
+      xyz: [-0.0925, 0.0, 0.0625]
+      rpy: [0.0, 0.0, 0.0]
+
+overrides:
+  safety:
+    # The parent's TCP +z rule protects its gripper-mounted D455F. Our
+    # Sonix follows link4, not gripper roll; its actual boxes are checked
+    # above for table, keep-out and obstacle clearance at every pose.
+    wrist_camera_up: null
+    tool_volume:
+      # Actual camera: link4 above, not a D455F slab on the gripper.
+      # These verified URDF parts retain what that slab used to cover.
+      wrist_camera: false
+      jaws: true
+      housing: {min: [-0.160, -0.095, -0.045], max: [-0.070, 0.095, 0.045]}
+      fingers: {min: [-0.090, -0.085, -0.020], max: [0.005, 0.085, 0.020]}
+  relative_motion:
+    wrist_camera: null

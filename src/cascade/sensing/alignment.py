@@ -110,6 +110,22 @@ class SampleBuffer:
         got = nearest(items, t)
         return None if got is None else (got[0][1], got[1])
 
+    def at_or_before(self, t: float):
+        """Latest `(sample, sample_time)` at/before t, or None.
+
+        For command histories: a target remains commanded until superseded.
+        This is NOT a freshness policy for measured sensor samples; those
+        still use nearest + classify. No interpolation or future sample.
+        """
+        if not math.isfinite(t):
+            return None
+        with self._lock:
+            eligible = [(stamp, sample) for stamp, sample in self._buf if stamp <= t]
+        if not eligible:
+            return None
+        stamp, sample = max(eligible, key=lambda item: item[0])
+        return sample, stamp
+
 
 @dataclass(frozen=True)
 class Pairing:

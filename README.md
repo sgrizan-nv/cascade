@@ -314,6 +314,13 @@ memory frame + verdict. Every result carries `outcome: ok | failed | stuck`;
 
 ## Setup notes
 
+For an OAK stereo camera, install the optional `camera-oak` extra and select
+`--camera oak_d`. The [OAK guide](docs/OAK_CAMERA.md) describes measured RGB-D
+capture, serial binding and passive camera-to-arm calibration. The local profile
+enables robot-frame localization/fusion only through its accepted, serial-bound
+calibration record. The guide also describes the workstation's local adaptations,
+operating instructions and current limitations.
+
 Only for a real or Isaac camera. `PY="$PWD/.venv/bin/python" bash scripts/setup_env.sh`
 adds the rig packages (ultralytics, openai, anthropic, motorbridge) to the `uv sync`
 venv (without `PY` it targets the reference rig's own venv); pyrealsense2 comes from the

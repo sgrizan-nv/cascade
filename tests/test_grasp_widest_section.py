@@ -195,3 +195,25 @@ def test_isolated_wide_band_does_not_pull_the_grasp_to_the_support_plane():
     result = _widest_section_z(pts, np.array([1., 0., 0.]), 0.85 * top,
                                0.0, top, 0.005)
     assert result == pytest.approx(0.026 - ROUND_GRASP_INSET_M, abs=0.002)
+
+
+def test_partial_flat_top_with_high_depth_patch_is_not_a_rounded_object():
+    """A broad lid below a noisy high patch contradicts tapering toward the top.
+
+    A partial RGB-D view can have narrow side slices at the planned height
+    and a few high depths above a broad flat top. Using only the last slice
+    mistakes that occlusion/noise for curvature and dives toward the support.
+    """
+    rng = np.random.default_rng(47)
+    z = rng.uniform(0.0, .09, 4000)
+    half_width = np.where(z < .025, .03, .008)
+    sides = np.c_[rng.uniform(-1, 1, len(z)) * half_width,
+                  np.full(len(z), .02), z]
+    lid = np.c_[rng.uniform(-.03, .03, 1200), rng.uniform(-.02, .02, 1200),
+                rng.normal(.09, .0005, 1200)]
+    high_patch = np.c_[rng.uniform(-.004, .004, 40), rng.uniform(-.004, .004, 40),
+                       np.full(40, .102)]
+    pts = np.vstack([sides, lid, high_patch])
+    planned = .85 * pts[:, 2].max()
+    assert _widest_section_z(pts, np.array([1., 0., 0.]), planned,
+                             0., pts[:, 2].max(), .008) == planned

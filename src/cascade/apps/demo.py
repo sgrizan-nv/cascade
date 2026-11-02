@@ -135,6 +135,16 @@ def _arm_cfgs(cfg) -> list[Cfg]:
     return [cfg.arm]
 
 
+def _measured_q_if_connected(arm):
+    """Drift feedback must never wake a LazyArm, even during disconnect."""
+    if isinstance(arm, LazyArm):
+        state = arm.get_state_if_connected()
+        return None if state is None else state.q
+    if not getattr(arm, "connected", True):
+        return None
+    return arm.get_state().q
+
+
 def _drift_monitors(cam_cfgs, watched, *, watcher, surface_fn, q_fn, motion_fn, run_dir,
                     memory, arm_name: str = "", ee_frame: str = "") -> list:
     """One ExtrinsicDriftMonitor per camera whose profile enables
@@ -207,6 +217,13 @@ class _MeshArmState:
         if arm is None or not getattr(arm, "connected", True):
             return None
         return _body_mask_state(arm)
+
+    def at_time(self, capture_t):
+        arm = self.arm
+        if arm is None or not getattr(arm, "connected", True):
+            return None
+        read = getattr(arm, "body_mask_state_at", None)
+        return read(capture_t) if callable(read) else _body_mask_state(arm)
 
 
 class _RigHeartbeat:
@@ -384,12 +401,15 @@ def _arm_safety(acfg, occupancy, fallback_cfg, *, payload_tracked: bool = False)
         joint_signs=acfg.get("joint_signs"),
         ik_task_weights=acfg.get("ik_task_weights"),
     )
+    from ..safety.link_attachments import build_link_attachments
+
     harness = SafetyHarness(
         SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy,
         base_pose=_base_transform(acfg),
         # the wrist camera box + open jaws as clearance samples (opt-in per
         # profile: `safety.tool_volume`; a bad block fails the build here)
         tool_volume=build_tool_volume(view, acfg),
+        link_attachments=build_link_attachments(acfg, kin),
         arm_name=arm_name,
     )
     # Optional profile-defined rest pose for the shutdown park (see
@@ -1149,9 +1169,7 @@ def _build_runtime(cfg, run_dir: Path, *, view: bool, lazy_arm: bool, serve: boo
     # camera, opt-in. Read-only on the arm: joints via a reader that never
     # materialises a LazyArm, motion from the harness / a paused watcher.
     def _q_now():
-        if not getattr(arm, "connected", True):
-            return None
-        return arm.get_state().q
+        return _measured_q_if_connected(arm)
 
     def _moving():
         w = runtime.watcher
